@@ -10,6 +10,7 @@ import torch
 from typing import TYPE_CHECKING
 import sys
 import os
+import time
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -36,24 +37,34 @@ def get_robot_girl_joint_names() -> list[str]:
     ]
 
 # global variable to cache the DDS instance
+from dds.dds_master import dds_manager
 _gripper_dds = None
-_dds_initialized = False
+_dds_retry_interval_s = 1.0
+_dds_next_retry_time = 0.0
+_dds_cleanup_registered = False
 
 def _get_gripper_dds_instance():
     """get the DDS instance, delay initialization"""
-    global _gripper_dds, _dds_initialized
-    
-    if not _dds_initialized or _gripper_dds is None:
-        try:
-            # dynamically import the DDS module
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dds'))
-            from dds.dds_master import dds_manager
-            
-            _gripper_dds = dds_manager.get_object("dex1")
-            print("[Observations] DDS communication instance obtained")
-            
-            # register the cleanup function
+    global _gripper_dds, _dds_next_retry_time, _dds_cleanup_registered
+
+    if _gripper_dds is not None:
+        return _gripper_dds
+
+    now = time.monotonic()
+    if now < _dds_next_retry_time:
+        return None
+
+    try:
+        _gripper_dds = dds_manager.objects.get("dex1")
+        if _gripper_dds is None:
+            _dds_next_retry_time = now + _dds_retry_interval_s
+            return None
+
+        print("[gripper_state] DDS communication instance obtained")
+
+        if not _dds_cleanup_registered:
             import atexit
+
             def cleanup_dds():
                 try:
                     if _gripper_dds:
@@ -61,14 +72,14 @@ def _get_gripper_dds_instance():
                         print("[gripper_state] DDS communication closed correctly")
                 except Exception as e:
                     print(f"[gripper_state] Error closing DDS: {e}")
+
             atexit.register(cleanup_dds)
-            
-        except Exception as e:
-            print(f"[Observations] Failed to get DDS instances: {e}")
-            _gripper_dds = None
-        
-        _dds_initialized = True
-    
+            _dds_cleanup_registered = True
+    except Exception as e:
+        print(f"[gripper_state] Failed to get DDS instance: {e}")
+        _gripper_dds = None
+        _dds_next_retry_time = now + _dds_retry_interval_s
+
     return _gripper_dds
 
 def initialize_gripper_dds():
@@ -157,4 +168,3 @@ def get_robot_gipper_joint_states(
             print(f"[gripper_state] Failed to write to shared memory: {e}")
     
     return pos_buf
-

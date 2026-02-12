@@ -9,6 +9,7 @@ import torch
 from typing import TYPE_CHECKING
 import sys
 import os
+import time
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -50,24 +51,34 @@ def get_robot_girl_joint_names() -> list[str]:
     ]
 
 # global variable to cache the DDS instance
+from dds.dds_master import dds_manager
 _dex3_dds = None
-_dds_initialized = False
+_dds_retry_interval_s = 1.0
+_dds_next_retry_time = 0.0
+_dds_cleanup_registered = False
 
 def _get_dex3_dds_instance():
     """get the DDS instance, delay initialization"""
-    global _dex3_dds, _dds_initialized
-    
-    if not _dds_initialized or _dex3_dds is None:
-        try:
-            # dynamically import the DDS module
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dds'))
-            from dds.dds_master import dds_manager
-            
-            _dex3_dds = dds_manager.get_object("dex3")
-            print("[Observations Dex3] DDS communication instance obtained")
-            
-            # register the cleanup function
+    global _dex3_dds, _dds_next_retry_time, _dds_cleanup_registered
+
+    if _dex3_dds is not None:
+        return _dex3_dds
+
+    now = time.monotonic()
+    if now < _dds_next_retry_time:
+        return None
+
+    try:
+        _dex3_dds = dds_manager.objects.get("dex3")
+        if _dex3_dds is None:
+            _dds_next_retry_time = now + _dds_retry_interval_s
+            return None
+
+        print("[dex3_state] DDS communication instance obtained")
+
+        if not _dds_cleanup_registered:
             import atexit
+
             def cleanup_dds():
                 try:
                     if _dex3_dds:
@@ -75,14 +86,14 @@ def _get_dex3_dds_instance():
                         print("[dex3_state] DDS communication closed correctly")
                 except Exception as e:
                     print(f"[dex3_state] Error closing DDS: {e}")
+
             atexit.register(cleanup_dds)
-            
-        except Exception as e:
-            print(f"[Observations Dex3] Failed to get DDS instances: {e}")
-            _dex3_dds = None
-        
-        _dds_initialized = True
-    
+            _dds_cleanup_registered = True
+    except Exception as e:
+        print(f"[dex3_state] Failed to get DDS instance: {e}")
+        _dex3_dds = None
+        _dds_next_retry_time = now + _dds_retry_interval_s
+
     return _dex3_dds
 
 def get_robot_dex3_joint_states(
@@ -161,4 +172,3 @@ def get_robot_dex3_joint_states(
             print(f"dex3_state [dex3_state] Failed to write to DDS: {e}")
     
     return pos_buf
-

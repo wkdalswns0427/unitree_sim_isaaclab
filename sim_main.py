@@ -20,7 +20,7 @@ from pathlib import Path
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
-from teleimager.image_server import run_isaacsim_server
+# from teleimager.image_server import run_isaacsim_server
 from dds.dds_create import create_dds_objects,create_dds_objects_replay
 # add command line arguments
 parser = argparse.ArgumentParser(description="Unitree Simulation")
@@ -82,7 +82,7 @@ parser.add_argument("--seed", type=int, default=42, help="environment seed")
 # add AppLauncher parameters
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-
+from teleimager.image_server import run_isaacsim_server
 
 if args_cli.enable_dex3_dds and args_cli.enable_dex1_dds and args_cli.enable_inspire_dds:
     print("Error: enable_dex3_dds and enable_dex1_dds and enable_inspire_dds cannot be enabled at the same time")

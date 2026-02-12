@@ -4,11 +4,18 @@ import json
 import datetime
 import numpy as np
 import time
-from .rerun_visualizer import RerunLogger
+# from .rerun_visualizer import RerunLogger
+try:
+    from .rerun_visualizer import RerunLogger
+except Exception as e:
+    RerunLogger = None
+    print(f"[rerun] disabled: {e}")
 from queue import Queue, Empty
 from threading import Thread
 import logging_mp
-logger_mp = logging_mp.get_logger(__name__)
+# logger_mp = logging_mp.get_logger(__name__)
+logger_mp = logging_mp.getLogger(__name__)
+logger_mp.setLevel(logging_mp.INFO)
 
 class EpisodeWriter():
     def __init__(self, task_dir, frequency=30, image_size=[640, 480], rerun_log = True):

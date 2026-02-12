@@ -1,0 +1,47 @@
+Patch Log: DDS Observation Init Retry Fix
+Date: 2026-02-12
+
+Context
+- During startup, observation modules tried to acquire DDS objects before dds_create.py had registered them.
+- They cached None with a one-time initialized flag, so DDS publishing from observations never recovered.
+- Symptom in logs: "object 'g129' not found" / "object 'dex1' not found" early, then no recovery.
+
+What was changed
+1) Replaced one-shot init behavior with retry-on-miss behavior in observation DDS getters.
+2) Added throttled retry (1.0s interval) to avoid tight-loop overhead.
+3) Switched lookup to dds_manager.objects.get(...) to avoid noisy "object not found" logs from get_object().
+4) Kept cleanup registration, but only register once after successful acquisition.
+
+Files modified
+- tasks/common_observations/g1_29dof_state.py
+- tasks/common_observations/gripper_state.py
+- tasks/common_observations/inspire_state.py
+- tasks/common_observations/dex3_state.py
+
+Behavior before
+- _get_*_dds_instance() set _dds_initialized=True even when object was missing.
+- Later calls skipped reacquisition and remained None.
+
+Behavior after
+- If DDS object is missing, getter returns None and schedules next retry.
+- Once dds_create.py registers DDS objects, getter acquires successfully and continues normal writes.
+
+Validation done
+- Python syntax compile check passed:
+  python -m py_compile
+    tasks/common_observations/g1_29dof_state.py
+    tasks/common_observations/gripper_state.py
+    tasks/common_observations/inspire_state.py
+    tasks/common_observations/dex3_state.py
+
+How to verify at runtime
+1) Run sim_main.py normally.
+2) Ensure early "object not found" spam is gone or minimized.
+3) After DDS registration, expect one-time messages like:
+   - [g1_state] G1 robot DDS communication instance obtained
+   - [gripper_state] DDS communication instance obtained
+4) Confirm DDS state streams are active from your downstream subscriber.
+
+Notes
+- This patch addresses DDS object acquisition race only.
+- The separate rerun_visualizer indentation issue is not modified in this patch.

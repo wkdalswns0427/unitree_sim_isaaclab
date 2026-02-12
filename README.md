@@ -175,6 +175,16 @@ sudo apt install git-lfs
 
 #### 2.4.2 Teleoperation
 
+Run locally on a GPU machine (example):
+
+```bash
+python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinder-G129-Dex1-Joint --enable_dex1_dds --robot_type g129
+```
+
+If `DISPLAY` is not set, Isaac Sim will run headless automatically.
+
+CPU example:
+
 ```
 python sim_main.py --device cpu  --enable_cameras  --task  Isaac-PickPlace-Cylinder-G129-Dex1-Joint    --enable_dex1_dds --robot_type g129
 ```
