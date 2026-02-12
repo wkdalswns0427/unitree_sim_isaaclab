@@ -41,7 +41,11 @@ class FileActionProviderReplay(ActionProvider):
                 print(f"[{self.name}] Image data saving will be disabled")
                 self.multi_image_reader = None
             
-            self.recorder = EpisodeWriter(task_dir = self.generate_data_dir, frequency = 30, rerun_log = True)
+            self.recorder = EpisodeWriter(
+                task_dir=self.generate_data_dir,
+                frequency=30,
+                rerun_log=args_cli.rerun_log,
+            )
         print(f"FileActionProviderReplay init ok")
         
 

@@ -27,7 +27,9 @@ class EpisodeWriter():
         self.frequency = frequency
         self.image_size = image_size
 
-        self.rerun_log = rerun_log
+        self.rerun_log = bool(rerun_log and RerunLogger is not None)
+        if rerun_log and RerunLogger is None:
+            logger_mp.warning("==> rerun requested but unavailable; disabling rerun logging.\n")
         if self.rerun_log:
             logger_mp.info("==> RerunLogger initializing...\n")
             self.rerun_logger = RerunLogger(prefix="online/", IdxRangeBoundary = 60, memory_limit = "300MB")
