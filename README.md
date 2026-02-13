@@ -162,7 +162,70 @@ python scripts/mimic/import_unitree_reference.py \
   --output outputs/mimic/unitree_reference_raw.hdf5
 ```
 
-## 8. Common Issues
+## 8. H1-2 Wholebody -> Mimic Reference Pipeline
+
+If your goal is to use H1-2 wholebody trajectories from this repo as Mimic reference data, use this exact flow.
+
+Step 1: generate Unitree episodes (`data.json`) from replay.
+
+```bash
+cd /home/{USER}/mj_ws/unitree_sim_isaaclab
+conda activate rical_unitree
+export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
+
+python sim_main.py \
+  --device cuda \
+  --enable_cameras \
+  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --enable_inspire_dds \
+  --robot_type h1_2 \
+  --replay_data \
+  --file_path /path/to/source_data_json_or_episode_dir \
+  --generate_data \
+  --generate_data_dir ./data_gen_h12
+```
+
+Step 2: verify generated episodes.
+
+```bash
+find ./data_gen_h12 -name data.json | sort
+```
+
+Step 3: convert to HDF5 reference in `h1_mimic_tasks`.
+
+```bash
+cd /home/{USER}/mj_ws/IsaacLab_Humanoid/h1_mimic_tasks
+conda activate rical_unitree
+
+python scripts/mimic/import_unitree_reference.py \
+  --input_path /home/{USER}/mj_ws/unitree_sim_isaaclab/data_gen_h12 \
+  --output outputs/mimic/unitree_reference_raw.hdf5 \
+  --write_states
+```
+
+Step 4: run Mimic annotation and dataset generation.
+
+```bash
+export ISAACLAB_ROOT=/home/{USER}/RICAL_IsaacLab
+
+python scripts/mimic/annotate_demos.py \
+  --task H1-Pick-Block-Mimic-v0 \
+  --input_file outputs/mimic/unitree_reference_raw.hdf5 \
+  --output_file outputs/mimic/unitree_reference_annotated.hdf5 \
+  --auto
+
+python scripts/mimic/generate_dataset.py \
+  --task H1-Pick-Block-Mimic-v0 \
+  --input_file outputs/mimic/unitree_reference_annotated.hdf5 \
+  --output_file outputs/mimic/unitree_reference_generated.hdf5
+```
+
+Important caveat:
+- `import_unitree_reference.py` stores actions as `[left_arm, right_arm, left_ee, right_ee]`.
+- `H1-Pick-Block-Mimic-v0` currently uses a 6D IK delta-pose action.
+- So this is a reference-motion bridge, not guaranteed plug-and-play training data without action-space mapping.
+
+## 9. Common Issues
 
 - `No module named rerun.blueprint`:
   - `rerun` is optional unless you enable `--rerun_log`.
@@ -171,4 +234,3 @@ python scripts/mimic/import_unitree_reference.py \
   - Replay loader checks dataset task name. Match `--task` to source data.
 - Headless warnings (`GLFW`, `MESA`, `left-click sim window`):
   - Usually expected on servers without display.
-
