@@ -44,21 +44,21 @@ def reset_object_estimate(
     green_block_y = green_block.data.root_pos_w[:, 1]        # y position
     green_block_height = green_block.data.root_pos_w[:, 2]   # z position (height)
     
-    red_done_x = (red_block_x < max_x) and  (red_block_x > min_x)
-    red_done_y = (red_block_y < max_y) and (red_block_y > min_y)
-    red_done_height = (red_block_height > min_height)
-    red_done = red_done_x and red_done_y and red_done_height
+    red_done_x = (red_block_x < max_x) & (red_block_x > min_x)
+    red_done_y = (red_block_y < max_y) & (red_block_y > min_y)
+    red_done_height = red_block_height > min_height
+    red_done = red_done_x & red_done_y & red_done_height
 
-    yellow_done_x = (yellow_block_x < max_x) and  (yellow_block_x > min_x)
-    yellow_done_y = (yellow_block_y < max_y) and (yellow_block_y > min_y)
-    yellow_done_height = (yellow_block_height > min_height)
-    yellow_done = yellow_done_x and yellow_done_y and yellow_done_height
+    yellow_done_x = (yellow_block_x < max_x) & (yellow_block_x > min_x)
+    yellow_done_y = (yellow_block_y < max_y) & (yellow_block_y > min_y)
+    yellow_done_height = yellow_block_height > min_height
+    yellow_done = yellow_done_x & yellow_done_y & yellow_done_height
 
-    green_done_x = (green_block_x < max_x) and  (green_block_x > min_x)
-    green_done_y = (green_block_y < max_y) and (green_block_y > min_y)
-    green_done_height = (green_block_height > min_height)
-    green_done = green_done_x and green_done_y and green_done_height
+    green_done_x = (green_block_x < max_x) & (green_block_x > min_x)
+    green_done_y = (green_block_y < max_y) & (green_block_y > min_y)
+    green_done_height = green_block_height > min_height
+    green_done = green_done_x & green_done_y & green_done_height
 
-    done = not (red_done and yellow_done and green_done)
+    all_done = red_done & yellow_done & green_done
 
-    return done
+    return ~all_done

@@ -45,6 +45,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 Example (GPU):
 
 ```bash
+export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinder-G129-Dex1-Joint --enable_dex1_dds --robot_type g129
 ```
 
@@ -60,9 +61,13 @@ Keyboard control publishes DDS run commands and is intended for tasks containing
 Terminal A (run sim):
 
 ```bash
+export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 cd /home/{USER}/mj_ws/unitree_sim_isaaclab
 conda activate rical_unitree
 python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-G129-Dex1-Wholebody --enable_dex1_dds --robot_type g129
+
+python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinder-H12-27dof-Inspire-Joint --enable_inspire_dds --robot_type h1_2
+
 ```
 
 Terminal B (keyboard publisher):

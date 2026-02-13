@@ -10,6 +10,7 @@ contains various task implementations for the G1 robot, such as pick and place, 
 from . import pick_place_cylinder_h12_27dof_inspire
 from . import stack_rgyblock_h12_27dof_inspire
 from . import pick_place_redblock_h12_27dof_inspire
+from . import move_cylinder_h12_27dof_inspire_wholebody
 
 
 # export all modules
@@ -17,5 +18,6 @@ __all__ = [
         "pick_place_cylinder_h12_27dof_inspire",
         "stack_rgyblock_h12_27dof_inspire",
         "pick_place_redblock_h12_27dof_inspire",
+        "move_cylinder_h12_27dof_inspire_wholebody",
 
 ]

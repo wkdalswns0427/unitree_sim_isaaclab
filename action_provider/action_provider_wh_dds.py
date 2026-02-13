@@ -39,7 +39,9 @@ class DDSRLActionProvider(ActionProvider):
         device = self.env.device
         if hasattr(self, "arm_joint_mapping") and self.arm_joint_mapping:
             self._arm_target_indices = [self.joint_to_index[name] for name in self.arm_joint_mapping.keys()]
-            self._arm_source_indices = [idx + 15 for idx in self.arm_joint_mapping.values()]
+            # g129 command layout includes 15 non-arm joints before arm joints, h1_2 includes 13.
+            arm_source_offset = 13 if self.enable_robot == "h1_2" else 15
+            self._arm_source_indices = [idx + arm_source_offset for idx in self.arm_joint_mapping.values()]
             self._arm_target_idx_t = torch.tensor(self._arm_target_indices, dtype=torch.long, device=device)
             self._arm_source_idx_t = torch.tensor(self._arm_source_indices, dtype=torch.long, device=device)
         if self.enable_gripper:
@@ -84,7 +86,7 @@ class DDSRLActionProvider(ActionProvider):
         print(f"enable_gripper: {self.enable_gripper}")
         print(f"enable_dex3: {self.enable_dex3}")
         try:
-            if self.enable_robot == "g129":
+            if self.enable_robot == "g129" or self.enable_robot == "h1_2":
                 self.robot_dds = dds_manager.get_object("g129")
             if self.enable_gripper:
                 self.gripper_dds = dds_manager.get_object("dex1")
@@ -167,7 +169,7 @@ class DDSRLActionProvider(ActionProvider):
             'right_wrist_pitch_joint', 
             'left_wrist_yaw_joint', 
             'right_wrist_yaw_joint',]
-        if self.enable_robot == "g129":
+        if self.enable_robot == "g129" or self.enable_robot == "h1_2":
             self.arm_joint_mapping = {
                 "left_shoulder_pitch_joint": 0,
                 "left_shoulder_roll_joint": 1,
@@ -252,8 +254,6 @@ class DDSRLActionProvider(ActionProvider):
         for waist_joint in self.waist_joint_mapping:
             if waist_joint in self.all_joint_names:
                 self.waist_to_all_indices.append(self.all_joint_names.index(waist_joint))
-            else:
-                raise ValueError(f"waist joint '{waist_joint}' not in all joint list")
 
         self.arm_to_all_indices=[]
         for arm_joint in self.arm_joint_names:
@@ -266,11 +266,16 @@ class DDSRLActionProvider(ActionProvider):
         self.default_action_velocities = self.env.scene["robot"].data.default_joint_vel
         self.all_obs_indices = self.action_to_indices + self.arm_to_all_indices
         self.old_action_indices = []
+        self._old_action_slot_to_joint_index = []
         for old_action_joint in self.old_action_joints_names:
             if old_action_joint in self.all_joint_names:
-                self.old_action_indices.append(self.all_joint_names.index(old_action_joint))
+                joint_idx = self.all_joint_names.index(old_action_joint)
+                self.old_action_indices.append(joint_idx)
+                self._old_action_slot_to_joint_index.append(joint_idx)
             else:
-                raise ValueError(f"action joint '{old_action_joint}' not in all joint list")
+                # Keep missing joints (e.g. waist on h1_2) as virtual zero-action slots.
+                self._old_action_slot_to_joint_index.append(None)
+        self._action_slots_in_old_action = [self.old_action_joints_names.index(name) for name in self.action_joint_names]
         self.arm_action = []
         self.obs_scales = {"ang_vel":1.0, "projected_gravity":1.0, "commands":1.0, 
                            "joint_pos":1.0, "joint_vel":1.0, "actions":1.0}
@@ -283,7 +288,7 @@ class DDSRLActionProvider(ActionProvider):
         )
         self.num_envs =1
         self.clip_obs = 100
-        self.num_actions_all = self.env.scene["robot"].data.default_joint_pos[:,self.old_action_indices].shape[1]  
+        self.num_actions_all = len(self.old_action_joints_names)
         self.action_buffer = DelayBuffer(
             5, self.num_envs, device=self.env.device
         )
@@ -367,6 +372,14 @@ class DDSRLActionProvider(ActionProvider):
         actor_obs = self.actor_obs_buffer.buffer.reshape(self.num_envs, -1)
         actor_obs = torch.clip(actor_obs, -self.clip_obs, self.clip_obs)
         return actor_obs
+
+    def _build_old_action_vector(self, full_action: torch.Tensor) -> torch.Tensor:
+        """Build a fixed-size old-action vector including virtual slots for missing joints."""
+        out = torch.zeros((1, self.num_actions_all), dtype=torch.float32, device=self.env.device)
+        for slot_idx, joint_idx in enumerate(self._old_action_slot_to_joint_index):
+            if joint_idx is not None:
+                out[0, slot_idx] = full_action[joint_idx]
+        return out
     
     def run_policy(self):
         current_actor_obs = self.compute_observations()
@@ -378,23 +391,36 @@ class DDSRLActionProvider(ActionProvider):
             full_action = self._full_action_buf
             full_action.zero_()
             action_data = self.run_policy()
+            action_data = torch.as_tensor(action_data, dtype=torch.float32, device=self.env.device).reshape(-1)
+            if action_data.numel() < len(self.action_to_indices):
+                raise ValueError(
+                    f"policy output too short: got {action_data.numel()}, expected {len(self.action_to_indices)}"
+                )
+            action_data = action_data[: len(self.action_to_indices)]
 
             # RL 输出与腰部默认位姿
             full_action[self.action_to_indices] = action_data
-            full_action[self.waist_to_all_indices] = self.default_waist_positions
+            if len(self.waist_to_all_indices) > 0:
+                full_action[self.waist_to_all_indices] = self.default_waist_positions[0]
             # 机器人指令（若有）
-            if self.enable_robot == "g129" and self.robot_dds:
+            if self.enable_robot in ("g129", "h1_2") and self.robot_dds:
                 cmd_data = self.robot_dds.get_robot_command()
                 if cmd_data and 'motor_cmd' in cmd_data:
                     positions = cmd_data['motor_cmd']['positions']
-                    if len(positions) >= 29 and hasattr(self, "_arm_source_idx_t"):
-                        self._positions_buf[:29].copy_(torch.tensor(positions[:29], dtype=torch.float32, device=self.env.device))
+                    required_len = int(self._arm_source_idx_t.max().item()) + 1 if hasattr(self, "_arm_source_idx_t") else 29
+                    if len(positions) >= required_len and hasattr(self, "_arm_source_idx_t"):
+                        self._positions_buf[:required_len].copy_(
+                            torch.tensor(positions[:required_len], dtype=torch.float32, device=self.env.device)
+                        )
                         arm_vals = self._positions_buf.index_select(0, self._arm_source_idx_t)
                         full_action.index_copy_(0, self._arm_target_idx_t, arm_vals)
             # 延时/裁剪/缩放
-            delayed_actions = self.action_buffer.compute(full_action[self.old_action_indices].unsqueeze(0))
-            cliped_actions = torch.clip(delayed_actions[:,self.action_to_indices], -self.clip_actions, self.clip_actions).to(self.env.device)
-            full_action[self.action_to_indices] = cliped_actions * self.action_scale + self.default_action_positions[:, self.action_to_indices]
+            delayed_actions = self.action_buffer.compute(self._build_old_action_vector(full_action))
+            cliped_actions = torch.clip(
+                delayed_actions[:, self._action_slots_in_old_action], -self.clip_actions, self.clip_actions
+            ).to(self.env.device)
+            default_leg_action = self.default_action_positions[0, self.action_to_indices]
+            full_action[self.action_to_indices] = cliped_actions[0] * self.action_scale + default_leg_action
             
             # 夹爪/手指（若有）
             if self.gripper_dds and hasattr(self, "_gripper_source_idx_t"):

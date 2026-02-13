@@ -31,10 +31,10 @@ def reset_object_estimate(
     wheel_x = object.data.root_pos_w[:, 0]         # x position
     wheel_y = object.data.root_pos_w[:, 1]        # y position
     wheel_height = object.data.root_pos_w[:, 2]   # z position (height)
-    done_x = (wheel_x < max_x) and  (wheel_x > min_x)
-    done_y = (wheel_y < max_y) and (wheel_y > min_y)
-    done_height = (wheel_height > min_height)
-    done = done_x and done_y and done_height
+    done_x = (wheel_x < max_x) & (wheel_x > min_x)
+    done_y = (wheel_y < max_y) & (wheel_y > min_y)
+    done_height = wheel_height > min_height
+    done = done_x & done_y & done_height
     # print(f"done_x: {done_x}, done_y: {done_y}, done_height: {done_height}, done: {done}")
     # print(f"wheel_x: {wheel_x}, wheel_y: {wheel_y}, wheel_height: {wheel_height}")
-    return  not done
+    return ~done
