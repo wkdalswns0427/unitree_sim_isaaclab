@@ -8,8 +8,9 @@ support different robot variants: with/without waist joint, different finger con
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import configclass
-from robots.unitree import G129_CFG_WITH_DEX1_BASE_FIX,G129_CFG_WITH_DEX3_BASE_FIX,G129_CFG_WITH_INSPIRE_HAND,G129_CFG_WITH_DEX1_WHOLEBODY,G129_CFG_WITH_DEX3_WHOLEBODY,G129_CFG_WITH_INSPIRE_WHOLEBODY,H12_CFG_WITH_INSPIRE_HAND
+from robots.unitree import G129_CFG_WITH_DEX1_BASE_FIX,G129_CFG_WITH_DEX3_BASE_FIX,G129_CFG_WITH_INSPIRE_HAND,G129_CFG_WITH_DEX1_WHOLEBODY,G129_CFG_WITH_DEX3_WHOLEBODY,G129_CFG_WITH_INSPIRE_WHOLEBODY,H12_CFG_WITH_INSPIRE_HAND,H12_CFG_WITH_INSPIRE_WHOLEBODY,H12_CFG_WITH_INSPIRE_HAND_FLOATING,H12_CFG_WITH_INSPIRE_WHOLEBODY_FLOATING,H12_FLOATING_USD_PATH
 from typing import Optional, Dict, Tuple, Literal
+import os
 
 
 @configclass
@@ -335,3 +336,45 @@ class H12RobotPresets:
             base_config=H12_CFG_WITH_INSPIRE_HAND,
             robot_type="h1_2"
         )
+
+    @classmethod
+    def h12_27dof_inspire_wholebody(
+        cls,
+        init_pos: Tuple[float, float, float] = (-0.15, 0.0, 0.80),
+        init_rot: Tuple[float, float, float, float] = (0.7071, 0, 0, 0.7071),
+    ) -> ArticulationCfg:
+        return RobotBaseCfg.get_base_config(
+            init_pos=init_pos,
+            init_rot=init_rot,
+            include_waist=False,
+            hand_type="inspire",
+            base_config=H12_CFG_WITH_INSPIRE_WHOLEBODY,
+            robot_type="h1_2",
+            update_default_joint_pos=False,
+        )
+
+    @classmethod
+    def h12_27dof_inspire_wholebody_floating(
+        cls,
+        init_pos: Tuple[float, float, float] = (-0.15, 0.0, 0.80),
+        init_rot: Tuple[float, float, float, float] = (0.7071, 0, 0, 0.7071),
+    ) -> ArticulationCfg:
+        return RobotBaseCfg.get_base_config(
+            init_pos=init_pos,
+            init_rot=init_rot,
+            include_waist=False,
+            hand_type="inspire",
+            base_config=H12_CFG_WITH_INSPIRE_WHOLEBODY_FLOATING,
+            robot_type="h1_2",
+            update_default_joint_pos=False,
+        )
+
+    @classmethod
+    def h12_27dof_inspire_wholebody_auto(
+        cls,
+        init_pos: Tuple[float, float, float] = (-0.15, 0.0, 1.0),
+        init_rot: Tuple[float, float, float, float] = (0.7071, 0, 0, 0.7071),
+    ) -> ArticulationCfg:
+        if os.path.exists(H12_FLOATING_USD_PATH):
+            return cls.h12_27dof_inspire_wholebody_floating(init_pos=init_pos, init_rot=init_rot)
+        return cls.h12_27dof_inspire_base_fix(init_pos=init_pos, init_rot=init_rot)

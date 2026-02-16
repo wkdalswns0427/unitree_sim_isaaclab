@@ -13,6 +13,7 @@ import contextlib
 import time
 import sys
 import signal
+import threading
 import torch
 import gymnasium as gym
 from pathlib import Path
@@ -78,6 +79,19 @@ parser.add_argument("--camera_exclude", type=str, default="world_camera", help="
 
 parser.add_argument("--env_reward_interval", type=int, default=5, help="environment reward compute interval (steps)")
 parser.add_argument("--seed", type=int, default=42, help="environment seed")
+parser.add_argument(
+    "--wait_for_keyboard_start",
+    dest="wait_for_keyboard_start",
+    action="store_true",
+    default=False,
+    help="in wholebody DDS mode, hold default standing pose until first non-zero run command",
+)
+parser.add_argument(
+    "--no_wait_for_keyboard_start",
+    dest="wait_for_keyboard_start",
+    action="store_false",
+    help="disable startup hold and let wholebody policy act immediately (default)",
+)
 
 # add AppLauncher parameters
 AppLauncher.add_app_launcher_args(parser)
@@ -114,9 +128,15 @@ from action_provider.create_action_provider import create_action_provider
 from tools.get_stiffness import get_robot_stiffness_from_env
 from tools.get_reward import get_step_reward_value,get_current_rewards
 
+SHUTDOWN_EVENT = threading.Event()
+
 def setup_signal_handlers(controller,dds_manager=None,image_server=None):
     """set signal handlers"""
     def signal_handler(signum, frame):
+        if SHUTDOWN_EVENT.is_set():
+            print(f"\nreceived signal {signum} again, force exiting now...")
+            os._exit(130)
+        SHUTDOWN_EVENT.set()
         print(f"\nreceived signal {signum}, stopping controller...")
         try:
             controller.stop()
@@ -168,6 +188,11 @@ def main():
     print(f"Task: {args_cli.task}")
     print(f"Action source: {args_cli.action_source}")
     print("=" * 60)
+
+    env = None
+    controller = None
+    image_server = None
+    dds_manager = None
 
     # parse environment configuration
     try:
@@ -456,8 +481,8 @@ def main():
         reward_interval = max(1, args_cli.reward_interval)
 
         # use torch.inference_mode() and exception suppression
-        with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
-            while simulation_app.is_running() and controller.is_running:
+        with torch.inference_mode():
+            while simulation_app.is_running() and controller.is_running and not SHUTDOWN_EVENT.is_set():
                 current_time = time.time()
                 loop_count += 1
                 if not args_cli.replay_data:
@@ -572,6 +597,7 @@ def main():
                     break
                 # rate_limiter.sleep(env)
     except KeyboardInterrupt:
+        SHUTDOWN_EVENT.set()
         print("\nuser interrupted program")
     
     except Exception as e:
@@ -580,9 +606,21 @@ def main():
     finally:
         # clean up resources
         print("\nclean up resources...")
-        controller.cleanup()
-        image_server.stop()
-        env.close()
+        if controller is not None:
+            try:
+                controller.cleanup()
+            except Exception as e:
+                print(f"controller cleanup failed: {e}")
+        if image_server is not None:
+            try:
+                image_server.stop()
+            except Exception as e:
+                print(f"image server cleanup failed: {e}")
+        if env is not None:
+            try:
+                env.close()
+            except Exception as e:
+                print(f"env cleanup failed: {e}")
         print("cleanup completed")
     # profiler.disable()
     # s = io.StringIO()

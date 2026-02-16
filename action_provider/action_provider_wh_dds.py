@@ -23,6 +23,8 @@ class DDSRLActionProvider(ActionProvider):
         self.enable_dex3 = args_cli.enable_dex3_dds
         self.enable_inspire = args_cli.enable_inspire_dds
         self.wh = args_cli.enable_wholebody_dds
+        self.wait_for_keyboard_start = bool(getattr(args_cli, "wait_for_keyboard_start", False))
+        self._received_user_command = not self.wait_for_keyboard_start
         self.policy_path = f"{project_root}/"+args_cli.model_path
         self.env = env
         # Initialize DDS communication
@@ -31,6 +33,7 @@ class DDSRLActionProvider(ActionProvider):
         self.dex3_dds = None
         self.inspire_dds = None
         self.run_command = None
+        self.policy_input_dim = None
         self._setup_dds()
         self._setup_joint_mapping()
         self.policy = self.load_policy(self.policy_path)
@@ -85,6 +88,8 @@ class DDSRLActionProvider(ActionProvider):
         print(f"enable_robot: {self.enable_robot}")
         print(f"enable_gripper: {self.enable_gripper}")
         print(f"enable_dex3: {self.enable_dex3}")
+        if self.wait_for_keyboard_start:
+            print(f"[{self.name}] startup hold enabled: waiting for first non-zero run command")
         try:
             if self.enable_robot == "g129" or self.enable_robot == "h1_2":
                 self.robot_dds = dds_manager.get_object("g129")
@@ -310,11 +315,49 @@ class DDSRLActionProvider(ActionProvider):
 
     def load_onnx_policy(self,path):
         model = ort.InferenceSession(path)
+        input_shape = model.get_inputs()[0].shape
+        if input_shape and isinstance(input_shape[-1], int):
+            self.policy_input_dim = input_shape[-1]
         def run_inference(input_tensor):
             ort_inputs = {model.get_inputs()[0].name: input_tensor.cpu().numpy()}
             ort_outs = model.run(None, ort_inputs)
             return torch.tensor(ort_outs[0], device=self.env.device)
         return run_inference
+    def _compute_env_policy_observations(self):
+        """Compute policy observations from env observation manager for locally trained policies."""
+        obs_data = self.env.observation_manager.compute()
+        policy_obs = obs_data.get("policy", obs_data) if isinstance(obs_data, dict) else obs_data
+
+        def _to_flat_cuda_tensor(value):
+            if not torch.is_tensor(value):
+                return None
+            # Camera-like terms are often HWC tensors (rank >= 4 with batch dim) and
+            # may stay on CPU; skip them for this low-dimensional wholebody policy path.
+            if value.ndim >= 4:
+                return None
+            t = value
+            if t.device != self.env.device:
+                t = t.to(self.env.device, non_blocking=True)
+            if not t.is_floating_point():
+                t = t.float()
+            return t.reshape(t.shape[0], -1)
+
+        if isinstance(policy_obs, dict):
+            flat_terms = []
+            for value in policy_obs.values():
+                flat = _to_flat_cuda_tensor(value)
+                if flat is not None:
+                    flat_terms.append(flat)
+            if not flat_terms:
+                return None
+            policy_obs = torch.cat(flat_terms, dim=-1)
+        elif torch.is_tensor(policy_obs):
+            policy_obs = _to_flat_cuda_tensor(policy_obs)
+            if policy_obs is None:
+                return None
+        else:
+            return None
+        return torch.clip(policy_obs, -self.clip_obs, self.clip_obs)
     def compute_current_observations(self):
         command = [0,0,0,0.8]  
         run_command = self.run_command_dds.get_run_command()
@@ -341,6 +384,16 @@ class DDSRLActionProvider(ActionProvider):
                     print(f"[WARNING] cannot parse run_command data: {run_command_data}, error: {e}")
             
             self.run_command_dds.write_run_command([0.0,0,0,0.8])
+            if self.wait_for_keyboard_start and not self._received_user_command:
+                is_neutral = (
+                    abs(command[0]) < 1e-4
+                    and abs(command[1]) < 1e-4
+                    and abs(command[2]) < 1e-4
+                    and abs(command[3] - 0.8) < 1e-4
+                )
+                if not is_neutral:
+                    self._received_user_command = True
+                    print(f"[{self.name}] first run command received; policy actions enabled")
       
         # command = [0.5,0.0,0.7,0.8]
         command = torch.tensor(command, device=self.env.device, dtype=torch.float32)
@@ -365,6 +418,10 @@ class DDSRLActionProvider(ActionProvider):
     )
         return current_actor_obs
     def compute_observations(self):
+        if self.policy_input_dim is not None:
+            env_policy_obs = self._compute_env_policy_observations()
+            if env_policy_obs is not None and env_policy_obs.shape[-1] == self.policy_input_dim:
+                return env_policy_obs
 
         current_actor_obs = self.compute_current_observations()
 
@@ -391,6 +448,18 @@ class DDSRLActionProvider(ActionProvider):
             full_action = self._full_action_buf
             full_action.zero_()
             action_data = self.run_policy()
+            if self.wait_for_keyboard_start and not self._received_user_command:
+                full_action.copy_(self.default_action_positions[0])
+                if len(self.waist_to_all_indices) > 0:
+                    full_action[self.waist_to_all_indices] = self.default_waist_positions[0]
+                for _ in range(4):
+                    self.env.scene["robot"].set_joint_position_target(full_action)
+                    self.env.scene.write_data_to_sim()
+                    self.env.sim.step(render=False)
+                    self.env.scene.update(dt=self.env.physics_dt)
+                self.env.sim.render()
+                self.env.observation_manager.compute()
+                return
             action_data = torch.as_tensor(action_data, dtype=torch.float32, device=self.env.device).reshape(-1)
             if action_data.numel() < len(self.action_to_indices):
                 raise ValueError(

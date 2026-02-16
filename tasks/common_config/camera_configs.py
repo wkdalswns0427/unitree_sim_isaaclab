@@ -204,3 +204,37 @@ class CameraPresets:
             pos_offset=(-0.04012, 0.07441 ,0.15711),
             rot_offset=(0.00539,0.86024,0.0424, 0.50809),
         ) 
+
+    @classmethod
+    def left_inspire_wrist_camera_h12_floating(cls) -> CameraCfg:
+        """left wrist camera config for floating H1-2 URDF baseline (L/R hand base links)."""
+        return CameraBaseCfg.get_camera_config(
+            prim_path="/World/envs/env_.*/Robot/L_hand_base_link/left_wrist_camera",
+            height=480,
+            width=640,
+            update_period=0.02,
+            data_types=["rgb"],
+            focal_length=12.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.0,
+            clipping_range=(0.1, 1.0e5),
+            pos_offset=(-0.04012, -0.07441, 0.15711),
+            rot_offset=(0.00539, 0.86024, 0.0424, 0.50809),
+        )
+
+    @classmethod
+    def right_inspire_wrist_camera_h12_floating(cls) -> CameraCfg:
+        """right wrist camera config for floating H1-2 URDF baseline (L/R hand base links)."""
+        return CameraBaseCfg.get_camera_config(
+            prim_path="/World/envs/env_.*/Robot/R_hand_base_link/right_wrist_camera",
+            height=480,
+            width=640,
+            update_period=0.02,
+            data_types=["rgb"],
+            focal_length=12.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.0,
+            clipping_range=(0.1, 1.0e5),
+            pos_offset=(-0.04012, 0.07441, 0.15711),
+            rot_offset=(0.00539, 0.86024, 0.0424, 0.50809),
+        )

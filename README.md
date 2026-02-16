@@ -66,7 +66,7 @@ cd /home/{USER}/mj_ws/unitree_sim_isaaclab
 conda activate rical_unitree
 python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-G129-Dex1-Wholebody --enable_dex1_dds --robot_type g129
 
-python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinder-H12-27dof-Inspire-Joint --enable_inspire_dds --robot_type h1_2
+python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody --enable_inspire_dds --robot_type h1_2
 
 ```
 
@@ -75,7 +75,7 @@ Terminal B (keyboard publisher):
 ```bash
 cd /home/{USER}/mj_ws/unitree_sim_isaaclab
 conda activate rical_unitree
-python send_commands_keyboard.py
+python send_commands_keyboard.py --backend stdin --channel 1
 ```
 
 Default keys:
@@ -85,6 +85,46 @@ Default keys:
 - `Z/X`: rotate left/right
 - `C`: crouch
 - `Q`: quit keyboard publisher
+
+Important:
+- Keyboard control in `Wholebody` tasks sends high-level run commands (`x/y/yaw/height`) to the RL policy.
+- If the loaded policy is not trained for your robot/task pair, the robot may not move even though commands are being published.
+
+## 4.1 Train H1-2 Wholebody Policy (PPO)
+
+This repo now includes a local RSL-RL training entrypoint for:
+- `Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody`
+
+Run training:
+
+```bash
+cd /home/{USER}/mj_ws/unitree_sim_isaaclab
+conda activate rical_unitree
+export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
+
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --device cuda \
+  --headless \
+  --num_envs 64 \
+  --max_iterations 3000
+```
+
+Outputs:
+- checkpoints/logs: `logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/`
+- exported policy: `logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/exported/policy.onnx`
+
+Run sim with your trained ONNX:
+
+```bash
+python sim_main.py \
+  --device cuda \
+  --enable_cameras \
+  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --enable_inspire_dds \
+  --robot_type h1_2 \
+  --model_path logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/exported/policy.onnx
+```
 
 ## 5. Replay Existing Dataset
 

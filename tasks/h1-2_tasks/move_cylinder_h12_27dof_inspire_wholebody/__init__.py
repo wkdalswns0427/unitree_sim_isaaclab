@@ -4,6 +4,7 @@
 
 import gymnasium as gym
 
+from . import agents
 from . import move_cylinder_h12_27dof_inspire_hw_env_cfg
 
 
@@ -12,7 +13,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": move_cylinder_h12_27dof_inspire_hw_env_cfg.MoveCylinderH1227dofInspireWholebodyEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MoveCylinderH12InspireWholebodyPPORunnerCfg",
     },
     disable_env_checker=True,
 )
-

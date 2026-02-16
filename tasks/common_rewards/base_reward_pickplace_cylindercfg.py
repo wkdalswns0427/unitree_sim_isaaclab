@@ -11,24 +11,39 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 # global variable to cache the DDS instance
 _rewards_dds = None
-_dds_initialized = False
+_dds_retry_interval_s = 1.0
+_dds_next_retry_time = 0.0
+_dds_cleanup_registered = False
 import sys
 import os
+import time
 def _get_rewards_dds_instance():
     """get the DDS instance, delay initialization"""
-    global _rewards_dds, _dds_initialized
-    
-    if not _dds_initialized or _rewards_dds is None:
-        try:
-            # dynamically import the DDS module
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dds'))
-            from dds.dds_master import dds_manager
-            
-            _rewards_dds = dds_manager.get_object("rewards")
-            print("[Observations Rewards] DDS communication instance obtained")
-            
-            # register the cleanup function
+    global _rewards_dds, _dds_next_retry_time, _dds_cleanup_registered
+
+    if _rewards_dds is not None:
+        return _rewards_dds
+
+    now = time.monotonic()
+    if now < _dds_next_retry_time:
+        return None
+
+    try:
+        # dynamically import the DDS module
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dds'))
+        from dds.dds_master import dds_manager
+
+        _rewards_dds = dds_manager.objects.get("rewards")
+        if _rewards_dds is None:
+            _dds_next_retry_time = now + _dds_retry_interval_s
+            return None
+
+        print("[Observations Rewards] DDS communication instance obtained")
+
+        # register the cleanup function
+        if not _dds_cleanup_registered:
             import atexit
+
             def cleanup_dds():
                 try:
                     if _rewards_dds:
@@ -36,18 +51,27 @@ def _get_rewards_dds_instance():
                         print("[rewards_dds] DDS communication closed correctly")
                 except Exception as e:
                     print(f"[rewards_dds] Error closing DDS: {e}")
+
             atexit.register(cleanup_dds)
-            
-        except Exception as e:
-            print(f"[Observations Rewards] Failed to get DDS instances: {e}")
-            _rewards_dds = None
-        
-        _dds_initialized = True
-    
+            _dds_cleanup_registered = True
+
+    except Exception as e:
+        print(f"[Observations Rewards] Failed to get DDS instances: {e}")
+        _rewards_dds = None
+        _dds_next_retry_time = now + _dds_retry_interval_s
+
     return _rewards_dds
 def compute_reward(
     env: ManagerBasedRLEnv,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    enable_dds: bool = True,
+    dense_xy_weight: float = 0.0,
+    dense_z_weight: float = 0.0,
+    dense_xy_scale: float = 4.0,
+    dense_z_scale: float = 10.0,
+    target_x: float | None = None,
+    target_y: float | None = None,
+    target_z: float | None = None,
     min_x: float = -0.42,                # minimum x position threshold
     max_x: float = 1.0,                # maximum x position threshold
     min_y: float = 0.2,                # minimum y position threshold
@@ -97,9 +121,24 @@ def compute_reward(
     reward[done_post] = 1.0  # In target post area
     reward[done & ~done_post] = 0.0  # In valid area but not target
 
-    rewards_dds = _get_rewards_dds_instance()
-    if rewards_dds:
-        rewards_dds.write_rewards_data(reward)  
+    # Optional dense shaping around target center for easier learning.
+    if dense_xy_weight > 0.0 or dense_z_weight > 0.0:
+        tx = 0.5 * (post_min_x + post_max_x) if target_x is None else target_x
+        ty = 0.5 * (post_min_y + post_max_y) if target_y is None else target_y
+        tz = 0.5 * (post_min_height + post_max_height) if target_z is None else target_z
+
+        dist_xy = torch.sqrt((wheel_x - tx) ** 2 + (wheel_y - ty) ** 2)
+        dist_z = torch.abs(wheel_height - tz)
+        dense_reward = (
+            dense_xy_weight * torch.exp(-dense_xy_scale * dist_xy)
+            + dense_z_weight * torch.exp(-dense_z_scale * dist_z)
+        )
+        reward = reward + dense_reward
+
+    if enable_dds:
+        rewards_dds = _get_rewards_dds_instance()
+        if rewards_dds:
+            rewards_dds.write_rewards_data(reward)
     env._reward_last = reward
     env._reward_counter = counter + 1
     return reward

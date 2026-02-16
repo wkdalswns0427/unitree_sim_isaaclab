@@ -18,17 +18,18 @@ class TableCylinderSceneCfgWH(InteractiveSceneCfg): # inherit from the interacti
     """object table scene configuration class
     defines a complete scene containing robot, object, table, etc.
     """
-      # 1. room wall configuration - simplified configuration to avoid rigid body property conflicts
-    room_walls = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Room",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=[0.0, 0.0, 0],  # room center point
-            rot=[1.0, 0.0, 0.0, 0.0]
-        ),
-        spawn=UsdFileCfg(
-            usd_path=f"{project_root}/assets/objects/small_warehouse/small_warehouse_digital_twin.usd",
-        ),
-    )
+    # 1. Use flat terrain for simpler training/debugging.
+    # Keep the warehouse room config here for easy restore if needed.
+    # room_walls = AssetBaseCfg(
+    #     prim_path="/World/envs/env_.*/Room",
+    #     init_state=AssetBaseCfg.InitialStateCfg(
+    #         pos=[0.0, 0.0, 0],  # room center point
+    #         rot=[1.0, 0.0, 0.0, 0.0]
+    #     ),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{project_root}/assets/objects/small_warehouse/small_warehouse_digital_twin.usd",
+    #     ),
+    # )
 
 
         # 1. table configuration
@@ -75,7 +76,11 @@ class TableCylinderSceneCfgWH(InteractiveSceneCfg): # inherit from the interacti
             ),
         ),
     )
-    # Ground plane
+    # 3. flat terrain
+    ground = AssetBaseCfg(
+        prim_path="/World/GroundPlane",
+        spawn=GroundPlaneCfg(),
+    )
 
 
     # Lights

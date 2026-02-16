@@ -47,7 +47,6 @@ def get_robot_girl_joint_names() -> list[str]:
     ]
 
 # global variable to cache the DDS instance
-from dds.dds_master import dds_manager
 _inspire_dds = None
 _dds_retry_interval_s = 1.0
 _dds_next_retry_time = 0.0
@@ -65,6 +64,8 @@ def _get_inspire_dds_instance():
         return None
 
     try:
+        from dds.dds_master import dds_manager
+
         _inspire_dds = dds_manager.objects.get("inspire")
         if _inspire_dds is None:
             _dds_next_retry_time = now + _dds_retry_interval_s
@@ -165,4 +166,3 @@ def get_robot_inspire_joint_states(
             print(f"[gripper_state] Failed to write to shared memory: {e}")
     
     return pos_buf
-
