@@ -7,17 +7,23 @@ contains various task implementations for the G1 robot, such as pick and place, 
 
 # use relative import
 
-from . import pick_place_cylinder_h12_27dof_inspire
-from . import stack_rgyblock_h12_27dof_inspire
-from . import pick_place_redblock_h12_27dof_inspire
-from . import move_cylinder_h12_27dof_inspire_wholebody
+from . import h12_pick_place_cylinder_27dof_inspire
+from . import h12_stack_rgyblock_27dof_inspire
+from . import h12_pick_place_redblock_27dof_inspire
+from . import h12_move_cylinder_27dof_inspire_wholebody
+from . import h12_warehouse_walk_27dof_inspire_wholebody
+from . import h12_torso_flat_27dof_inspire_joint
+from . import h12_manager_torso_flat_27dof_inspire_joint
 
 
 # export all modules
 __all__ = [
-        "pick_place_cylinder_h12_27dof_inspire",
-        "stack_rgyblock_h12_27dof_inspire",
-        "pick_place_redblock_h12_27dof_inspire",
-        "move_cylinder_h12_27dof_inspire_wholebody",
+        "h12_pick_place_cylinder_27dof_inspire",
+        "h12_stack_rgyblock_27dof_inspire",
+        "h12_pick_place_redblock_27dof_inspire",
+        "h12_move_cylinder_27dof_inspire_wholebody",
+        "h12_warehouse_walk_27dof_inspire_wholebody",
+        "h12_torso_flat_27dof_inspire_joint",
+        "h12_manager_torso_flat_27dof_inspire_joint",
 
 ]

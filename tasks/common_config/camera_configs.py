@@ -176,7 +176,7 @@ class CameraPresets:
     def left_inspire_wrist_camera(cls) -> CameraCfg:
         """left wrist camera configuration"""
         return CameraBaseCfg.get_camera_config(
-            prim_path="/World/envs/env_.*/Robot/left_hand_camera_base_link/left_wrist_camera",
+            prim_path="/World/envs/env_.*/Robot/left_hand.*base_link/left_wrist_camera",
             height=480,
             width=640,
             update_period=0.02,
@@ -192,7 +192,7 @@ class CameraPresets:
     def right_inspire_wrist_camera(cls) -> CameraCfg:
         """right wrist camera configuration"""
         return CameraBaseCfg.get_camera_config(
-            prim_path="/World/envs/env_.*/Robot/right_hand_camera_base_link/right_wrist_camera",
+            prim_path="/World/envs/env_.*/Robot/right_hand.*base_link/right_wrist_camera",
             height=480,
             width=640,
             update_period=0.02,

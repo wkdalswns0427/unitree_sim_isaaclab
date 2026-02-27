@@ -92,6 +92,12 @@ parser.add_argument(
     action="store_false",
     help="disable startup hold and let wholebody policy act immediately (default)",
 )
+parser.add_argument(
+    "--wholebody_dds_lower_body",
+    action="store_true",
+    default=False,
+    help="in wholebody DDS mode, use rt/lowcmd lower-body targets (legs) instead of policy outputs",
+)
 
 # add AppLauncher parameters
 AppLauncher.add_app_launcher_args(parser)
@@ -193,6 +199,7 @@ def main():
     controller = None
     image_server = None
     dds_manager = None
+    camera_tick_fn = None
 
     # parse environment configuration
     try:
@@ -464,6 +471,12 @@ def main():
         setup_signal_handlers(controller)
         
     print("Note: The DDS in Sim transmits messages on channel 1. Please ensure that other DDS instances use the same channel for message exchange by setting: ChannelFactoryInitialize(1).")
+    if bool(getattr(args_cli, "enable_cameras", False)):
+        try:
+            from tasks.common_observations.camera_state import get_camera_image as camera_tick_fn
+        except Exception as e:
+            print(f"[camera] failed to import camera_state tick function: {e}")
+            camera_tick_fn = None
     try:
         # start controller - start asynchronous components
         print("========= start controller =========")
@@ -520,10 +533,14 @@ def main():
                                 print("reset object")
                                 env_cfg.event_manager.trigger("reset_object_self", env)
                                 reset_pose_dds.write_reset_pose_command(-1)
+                                if action_provider is not None and hasattr(action_provider, "arm_post_reset_stand_hold"):
+                                    action_provider.arm_post_reset_stand_hold(1.0)
                             elif reset_category == '2' and not args_cli.enable_wholebody_dds:
                                 print("reset all")
                                 env_cfg.event_manager.trigger("reset_all_self", env)
                                 reset_pose_dds.write_reset_pose_command(-1)
+                                if action_provider is not None and hasattr(action_provider, "arm_post_reset_stand_hold"):
+                                    action_provider.arm_post_reset_stand_hold(1.0)
                         except Exception as e:
                             print(f"Failed to write reset pose command: {e}")
                             raise e
@@ -558,6 +575,11 @@ def main():
                 
                 # execute control step (in main thread, support rendering)
                 controller.step()
+                if camera_tick_fn is not None:
+                    try:
+                        camera_tick_fn(env)
+                    except Exception:
+                        pass
 
                 # print statistics and loop frequency periodically
                 if current_time - last_stats_time >= args_cli.stats_interval:

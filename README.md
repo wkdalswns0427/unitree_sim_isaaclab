@@ -78,6 +78,14 @@ conda activate rical_unitree
 python send_commands_keyboard.py --backend stdin --channel 1
 ```
 
+H1-2 dedicated keyboard publisher (includes reset keys):
+
+```bash
+cd /home/{USER}/mj_ws/unitree_sim_isaaclab
+conda activate rical_unitree
+python nontask_control/h12_walk_keyboard.py --backend stdin --channel 1
+```
+
 Default keys:
 
 - `W/S`: forward/backward
@@ -85,6 +93,8 @@ Default keys:
 - `Z/X`: rotate left/right
 - `C`: crouch
 - `Q`: quit keyboard publisher
+- `U`: reset object (`reset category=1`, `h12_walk_keyboard.py`)
+- `P`: reset all (`reset category=2`, `h12_walk_keyboard.py`)
 
 Important:
 - Keyboard control in `Wholebody` tasks sends high-level run commands (`x/y/yaw/height`) to the RL policy.

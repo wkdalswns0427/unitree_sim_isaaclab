@@ -23,6 +23,7 @@ class DDSRLActionProvider(ActionProvider):
         self.enable_dex3 = args_cli.enable_dex3_dds
         self.enable_inspire = args_cli.enable_inspire_dds
         self.wh = args_cli.enable_wholebody_dds
+        self.wholebody_dds_lower_body = bool(getattr(args_cli, "wholebody_dds_lower_body", False))
         self.wait_for_keyboard_start = bool(getattr(args_cli, "wait_for_keyboard_start", False))
         self._received_user_command = not self.wait_for_keyboard_start
         self.policy_path = f"{project_root}/"+args_cli.model_path
@@ -47,6 +48,25 @@ class DDSRLActionProvider(ActionProvider):
             self._arm_source_indices = [idx + arm_source_offset for idx in self.arm_joint_mapping.values()]
             self._arm_target_idx_t = torch.tensor(self._arm_target_indices, dtype=torch.long, device=device)
             self._arm_source_idx_t = torch.tensor(self._arm_source_indices, dtype=torch.long, device=device)
+        if self.wholebody_dds_lower_body:
+            lowcmd_body_source_map = {
+                "left_hip_pitch_joint": 0,
+                "right_hip_pitch_joint": 6,
+                "left_hip_roll_joint": 1,
+                "right_hip_roll_joint": 7,
+                "left_hip_yaw_joint": 2,
+                "right_hip_yaw_joint": 8,
+                "left_knee_joint": 3,
+                "right_knee_joint": 9,
+                "left_ankle_pitch_joint": 4,
+                "right_ankle_pitch_joint": 10,
+                "left_ankle_roll_joint": 5,
+                "right_ankle_roll_joint": 11,
+            }
+            self._body_override_source_indices = [lowcmd_body_source_map[name] for name in self.action_joint_names]
+            self._body_override_target_indices = list(self.action_to_indices)
+            self._body_override_source_idx_t = torch.tensor(self._body_override_source_indices, dtype=torch.long, device=device)
+            self._body_override_target_idx_t = torch.tensor(self._body_override_target_indices, dtype=torch.long, device=device)
         if self.enable_gripper:
             self._gripper_target_indices = [self.joint_to_index[name] for name in self.gripper_joint_mapping.keys()]
             self._gripper_source_indices = [idx for idx in self.gripper_joint_mapping.values()]
@@ -88,6 +108,8 @@ class DDSRLActionProvider(ActionProvider):
         print(f"enable_robot: {self.enable_robot}")
         print(f"enable_gripper: {self.enable_gripper}")
         print(f"enable_dex3: {self.enable_dex3}")
+        if self.wholebody_dds_lower_body:
+            print(f"[{self.name}] wholebody lower-body DDS override enabled")
         if self.wait_for_keyboard_start:
             print(f"[{self.name}] startup hold enabled: waiting for first non-zero run command")
         try:
@@ -472,6 +494,7 @@ class DDSRLActionProvider(ActionProvider):
             if len(self.waist_to_all_indices) > 0:
                 full_action[self.waist_to_all_indices] = self.default_waist_positions[0]
             # 机器人指令（若有）
+            have_robot_lowcmd = False
             if self.enable_robot in ("g129", "h1_2") and self.robot_dds:
                 cmd_data = self.robot_dds.get_robot_command()
                 if cmd_data and 'motor_cmd' in cmd_data:
@@ -481,6 +504,7 @@ class DDSRLActionProvider(ActionProvider):
                         self._positions_buf[:required_len].copy_(
                             torch.tensor(positions[:required_len], dtype=torch.float32, device=self.env.device)
                         )
+                        have_robot_lowcmd = True
                         arm_vals = self._positions_buf.index_select(0, self._arm_source_idx_t)
                         full_action.index_copy_(0, self._arm_target_idx_t, arm_vals)
             # 延时/裁剪/缩放
@@ -490,6 +514,9 @@ class DDSRLActionProvider(ActionProvider):
             ).to(self.env.device)
             default_leg_action = self.default_action_positions[0, self.action_to_indices]
             full_action[self.action_to_indices] = cliped_actions[0] * self.action_scale + default_leg_action
+            if self.wholebody_dds_lower_body and have_robot_lowcmd and hasattr(self, "_body_override_source_idx_t"):
+                body_vals = self._positions_buf.index_select(0, self._body_override_source_idx_t)
+                full_action.index_copy_(0, self._body_override_target_idx_t, body_vals)
             
             # 夹爪/手指（若有）
             if self.gripper_dds and hasattr(self, "_gripper_source_idx_t"):

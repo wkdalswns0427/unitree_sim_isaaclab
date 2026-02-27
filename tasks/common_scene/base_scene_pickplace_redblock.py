@@ -18,17 +18,17 @@ class TableRedBlockSceneCfg(InteractiveSceneCfg): # inherit from the interactive
     """object table scene configuration class
     defines a complete scene containing robot, object, table, etc.
     """
-      # 1. room wall configuration - simplified configuration to avoid rigid body property conflicts
-    room_walls = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Room",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=[0.0, 0.0, 0],  # room center point
-            rot=[1.0, 0.0, 0.0, 0.0]
-        ),
-        spawn=UsdFileCfg(
-            usd_path=f"{project_root}/assets/objects/small_warehouse_digital_twin/small_warehouse_digital_twin.usd",
-        ),
-    )
+    # Flat setup for redblock tasks (no warehouse walls).
+    # room_walls = AssetBaseCfg(
+    #     prim_path="/World/envs/env_.*/Room",
+    #     init_state=AssetBaseCfg.InitialStateCfg(
+    #         pos=[0.0, 0.0, 0],  # room center point
+    #         rot=[1.0, 0.0, 0.0, 0.0]
+    #     ),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{project_root}/assets/objects/small_warehouse_digital_twin/small_warehouse_digital_twin.usd",
+    #     ),
+    # )
 
 
     # 1. table configuration
@@ -77,23 +77,22 @@ class TableRedBlockSceneCfg(InteractiveSceneCfg): # inherit from the interactive
 
     # Ground plane
     # 3. ground configuration
-    # ground = AssetBaseCfg(
-    #     prim_path="/World/GroundPlane",    # ground in the scene
-    #     spawn=GroundPlaneCfg( ),    # ground configuration
-    # )
+    ground = AssetBaseCfg(
+        prim_path="/World/GroundPlane",    # ground in the scene
+        spawn=GroundPlaneCfg(),    # ground configuration
+    )
 
     # Lights
     # 4. light configuration
-    # light = AssetBaseCfg(
-    #     prim_path="/World/light",   # light in the scene
-    #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), # light color (white)
-    #                                  intensity=3000.0),    # light intensity
-    # )
+    light = AssetBaseCfg(
+        prim_path="/World/light",   # light in the scene
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), # light color (white)
+                                     intensity=3000.0),    # light intensity
+    )
 
 
 
     world_camera = CameraBaseCfg.get_camera_config(prim_path="/World/PerspectiveCamera",
                                                     pos_offset=(-4.1, -4.9, 1.8),
                                                     rot_offset=( -0.3173,0.94833, 0.0, 0.0))
-
 

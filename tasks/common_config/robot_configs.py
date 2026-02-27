@@ -338,6 +338,21 @@ class H12RobotPresets:
         )
 
     @classmethod
+    def h12_27dof_inspire_floating(
+        cls,
+        init_pos: Tuple[float, float, float] = (-0.15, 0.0, 1.00),
+        init_rot: Tuple[float, float, float, float] = (0.7071, 0, 0, 0.7071),
+    ) -> ArticulationCfg:
+        return RobotBaseCfg.get_base_config(
+            init_pos=init_pos,
+            init_rot=init_rot,
+            include_waist=False,
+            hand_type="inspire",
+            base_config=H12_CFG_WITH_INSPIRE_HAND_FLOATING,
+            robot_type="h1_2",
+        )
+
+    @classmethod
     def h12_27dof_inspire_wholebody(
         cls,
         init_pos: Tuple[float, float, float] = (-0.15, 0.0, 0.80),
