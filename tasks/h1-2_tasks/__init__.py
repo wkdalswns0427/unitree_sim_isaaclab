@@ -12,8 +12,8 @@ from . import h12_stack_rgyblock_27dof_inspire
 from . import h12_pick_place_redblock_27dof_inspire
 from . import h12_move_cylinder_27dof_inspire_wholebody
 from . import h12_warehouse_walk_27dof_inspire_wholebody
-from . import h12_torso_flat_27dof_inspire_joint
-from . import h12_manager_torso_flat_27dof_inspire_joint
+from . import h12_manager_velocity_27dof_inspire
+from . import h12_velocity
 
 
 # export all modules
@@ -23,7 +23,7 @@ __all__ = [
         "h12_pick_place_redblock_27dof_inspire",
         "h12_move_cylinder_27dof_inspire_wholebody",
         "h12_warehouse_walk_27dof_inspire_wholebody",
-        "h12_torso_flat_27dof_inspire_joint",
-        "h12_manager_torso_flat_27dof_inspire_joint",
+        "h12_manager_velocity_27dof_inspire",
+        "h12_velocity",
 
 ]

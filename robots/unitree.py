@@ -8,6 +8,9 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 import os
 project_root = os.environ.get("PROJECT_ROOT")
+if not project_root:
+    # Fallback for direct script usage where PROJECT_ROOT is not exported.
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{project_root}/assets/robots/g1-29dof-dex3-base-fix-usd/g1_29dof_with_dex3_base_fix.usd",
@@ -1206,6 +1209,14 @@ H12_CFG_WITH_INSPIRE_HAND = ArticulationCfg(
             damping=None,
             armature=None,
         ),
+        "torso": ImplicitActuatorCfg(
+            joint_names_expr=["torso_joint"],
+            effort_limit_sim={"torso_joint": 88.0},
+            velocity_limit_sim={"torso_joint": 32.0},
+            stiffness={"torso_joint": 200.0},
+            damping={"torso_joint": 5.0},
+            armature={"torso_joint": 0.01},
+        ),
         "feet": ImplicitActuatorCfg(
             effort_limit=None,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
@@ -1353,6 +1364,14 @@ H12_CFG_WITH_INSPIRE_WHOLEBODY = H12_CFG_WITH_INSPIRE_HAND.replace(
             },
             armature=0.01,
         ),
+        "torso": ImplicitActuatorCfg(
+            joint_names_expr=["torso_joint"],
+            effort_limit_sim={"torso_joint": 88.0},
+            velocity_limit_sim={"torso_joint": 32.0},
+            stiffness={"torso_joint": 200.0},
+            damping={"torso_joint": 5.0},
+            armature={"torso_joint": 0.01},
+        ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             effort_limit_sim={
@@ -1424,16 +1443,85 @@ H12_CFG_WITH_INSPIRE_WHOLEBODY = H12_CFG_WITH_INSPIRE_HAND.replace(
 )
 
 
-H12_FLOATING_USD_PATH = f"{project_root}/assets/robots/h1_2-26dof-inspire-floating-usd/h1_2_26dof_with_inspire_floating.usd"
+H12_FTP_HAND_URDF_PATH = f"{project_root}/assets/robots/h1_2_description/h1_2_with_FTP_hand.urdf"
+H12_FTP_HAND_USD_DIR = f"{project_root}/assets/robots/h1_2_description/h1_2_with_FTP_hand"
+
+_H12_FTP_FLOATING_DEFAULT_JOINT_POS = {
+    "left_hip_pitch_joint": -0.20,
+    "left_knee_joint": 0.42,
+    "left_ankle_pitch_joint": -0.23,
+    "right_hip_pitch_joint": -0.20,
+    "right_knee_joint": 0.42,
+    "right_ankle_pitch_joint": -0.23,
+    "left_elbow_joint": 0.87,
+    "right_elbow_joint": 0.87,
+    "left_shoulder_roll_joint": 0.18,
+    "left_shoulder_pitch_joint": 0.35,
+    "right_shoulder_roll_joint": -0.18,
+    "right_shoulder_pitch_joint": 0.35,
+}
+
+_H12_FTP_HANDS_ACTUATOR = ImplicitActuatorCfg(
+    joint_names_expr=[
+        "left_index_[12]_joint",
+        "left_middle_[12]_joint",
+        "left_ring_[12]_joint",
+        "left_little_[12]_joint",
+        "left_thumb_[1-4]_joint",
+        "right_index_[12]_joint",
+        "right_middle_[12]_joint",
+        "right_ring_[12]_joint",
+        "right_little_[12]_joint",
+        "right_thumb_[1-4]_joint",
+    ],
+    effort_limit=100.0,
+    velocity_limit=50.0,
+    stiffness=1000.0,
+    damping=15.0,
+    armature=0.0,
+)
 
 H12_CFG_WITH_INSPIRE_HAND_FLOATING = H12_CFG_WITH_INSPIRE_HAND.replace(
-    spawn=H12_CFG_WITH_INSPIRE_HAND.spawn.replace(
-        usd_path=H12_FLOATING_USD_PATH,
+    spawn=sim_utils.UrdfFileCfg(
+        asset_path=H12_FTP_HAND_URDF_PATH,
+        usd_dir=H12_FTP_HAND_USD_DIR,
+        usd_file_name="h1_2_with_FTP_hand.usd",
+        force_usd_conversion=False,
+        make_instanceable=True,
+        fix_base=False,
+        root_link_name=None,
+        link_density=0.0,
+        merge_fixed_joints=False,
+        convert_mimic_joints_to_normal_joints=False,
+        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+            drive_type="force",
+            target_type="position",
+            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=100.0, damping=1.0),
+        ),
+        collider_type="convex_hull",
+        self_collision=False,
+        replace_cylinders_with_capsules=False,
+        collision_from_visuals=False,
+        activate_contact_sensors=True,
+        rigid_props=H12_CFG_WITH_INSPIRE_HAND.spawn.rigid_props,
+        articulation_props=H12_CFG_WITH_INSPIRE_HAND.spawn.articulation_props,
     ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 1.0),
+        joint_pos=_H12_FTP_FLOATING_DEFAULT_JOINT_POS,
+        joint_vel={".*": 0.0},
+    ),
+    actuators={**H12_CFG_WITH_INSPIRE_HAND.actuators, "hands": _H12_FTP_HANDS_ACTUATOR},
 )
 
 H12_CFG_WITH_INSPIRE_WHOLEBODY_FLOATING = H12_CFG_WITH_INSPIRE_WHOLEBODY.replace(
-    spawn=H12_CFG_WITH_INSPIRE_WHOLEBODY.spawn.replace(
-        usd_path=H12_FLOATING_USD_PATH,
+    spawn=H12_CFG_WITH_INSPIRE_HAND_FLOATING.spawn.replace(
+        articulation_props=H12_CFG_WITH_INSPIRE_WHOLEBODY.spawn.articulation_props,
     ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 1.0),
+        joint_pos=_H12_FTP_FLOATING_DEFAULT_JOINT_POS,
+        joint_vel={".*": 0.0},
+    ),
+    actuators={**H12_CFG_WITH_INSPIRE_WHOLEBODY.actuators, "hands": _H12_FTP_HANDS_ACTUATOR},
 )
