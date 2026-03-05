@@ -1109,9 +1109,15 @@ G129_CFG_WITH_INSPIRE_WHOLEBODY = ArticulationCfg(
 
 
 
+H12_OFFICIAL_INSPIRE_USD_PATH = f"{project_root}/assets/robots/h1_2_official/h1_2/h1_2.usd"
+H12_OFFICIAL_HANDLESS_USD_PATH = f"{project_root}/assets/robots/h1_2_official/h1_2_handless/h1_2_handless.usd"
+# Legacy path kept for compatibility with helper selection logic in task presets.
+H12_FTP_HAND_URDF_PATH = f"{project_root}/assets/robots/h1_2_description/h1_2_with_FTP_hand.urdf"
+
+
 H12_CFG_WITH_INSPIRE_HAND = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{project_root}/assets/robots/h1_2-26dof-inspire-base-fix-usd/h1_2_26dof_with_inspire_rev_1_0.usd",
+        usd_path=H12_OFFICIAL_INSPIRE_USD_PATH,
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -1443,9 +1449,6 @@ H12_CFG_WITH_INSPIRE_WHOLEBODY = H12_CFG_WITH_INSPIRE_HAND.replace(
 )
 
 
-H12_FTP_HAND_URDF_PATH = f"{project_root}/assets/robots/h1_2_description/h1_2_with_FTP_hand.urdf"
-H12_FTP_HAND_USD_DIR = f"{project_root}/assets/robots/h1_2_description/h1_2_with_FTP_hand"
-
 _H12_FTP_FLOATING_DEFAULT_JOINT_POS = {
     "left_hip_pitch_joint": -0.20,
     "left_knee_joint": 0.42,
@@ -1463,16 +1466,30 @@ _H12_FTP_FLOATING_DEFAULT_JOINT_POS = {
 
 _H12_FTP_HANDS_ACTUATOR = ImplicitActuatorCfg(
     joint_names_expr=[
-        "left_index_[12]_joint",
-        "left_middle_[12]_joint",
-        "left_ring_[12]_joint",
-        "left_little_[12]_joint",
-        "left_thumb_[1-4]_joint",
-        "right_index_[12]_joint",
-        "right_middle_[12]_joint",
-        "right_ring_[12]_joint",
-        "right_little_[12]_joint",
-        "right_thumb_[1-4]_joint",
+        "L_index_proximal_joint",
+        "L_index_intermediate_joint",
+        "L_middle_proximal_joint",
+        "L_middle_intermediate_joint",
+        "L_pinky_proximal_joint",
+        "L_pinky_intermediate_joint",
+        "L_ring_proximal_joint",
+        "L_ring_intermediate_joint",
+        "L_thumb_proximal_yaw_joint",
+        "L_thumb_proximal_pitch_joint",
+        "L_thumb_intermediate_joint",
+        "L_thumb_distal_joint",
+        "R_index_proximal_joint",
+        "R_index_intermediate_joint",
+        "R_middle_proximal_joint",
+        "R_middle_intermediate_joint",
+        "R_pinky_proximal_joint",
+        "R_pinky_intermediate_joint",
+        "R_ring_proximal_joint",
+        "R_ring_intermediate_joint",
+        "R_thumb_proximal_yaw_joint",
+        "R_thumb_proximal_pitch_joint",
+        "R_thumb_intermediate_joint",
+        "R_thumb_distal_joint",
     ],
     effort_limit=100.0,
     velocity_limit=50.0,
@@ -1482,29 +1499,8 @@ _H12_FTP_HANDS_ACTUATOR = ImplicitActuatorCfg(
 )
 
 H12_CFG_WITH_INSPIRE_HAND_FLOATING = H12_CFG_WITH_INSPIRE_HAND.replace(
-    spawn=sim_utils.UrdfFileCfg(
-        asset_path=H12_FTP_HAND_URDF_PATH,
-        usd_dir=H12_FTP_HAND_USD_DIR,
-        usd_file_name="h1_2_with_FTP_hand.usd",
-        force_usd_conversion=False,
-        make_instanceable=True,
-        fix_base=False,
-        root_link_name=None,
-        link_density=0.0,
-        merge_fixed_joints=False,
-        convert_mimic_joints_to_normal_joints=False,
-        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-            drive_type="force",
-            target_type="position",
-            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=100.0, damping=1.0),
-        ),
-        collider_type="convex_hull",
-        self_collision=False,
-        replace_cylinders_with_capsules=False,
-        collision_from_visuals=False,
-        activate_contact_sensors=True,
-        rigid_props=H12_CFG_WITH_INSPIRE_HAND.spawn.rigid_props,
-        articulation_props=H12_CFG_WITH_INSPIRE_HAND.spawn.articulation_props,
+    spawn=H12_CFG_WITH_INSPIRE_HAND.spawn.replace(
+        usd_path=H12_OFFICIAL_INSPIRE_USD_PATH,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.0),

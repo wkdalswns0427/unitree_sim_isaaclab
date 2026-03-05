@@ -84,6 +84,7 @@ _obs_cache = {
     "device": None,
     "batch": None,
     "boy_idx_t": None,
+    "boy_joint_key": None,
     "boy_idx_batch": None,
     "pos_buf": None,
     "vel_buf": None,
@@ -161,10 +162,23 @@ def get_robot_boy_joint_states(
 
     # 预计算并缓存索引张量（列索引）
     global _obs_cache
-    if _obs_cache["device"] != device or _obs_cache["boy_idx_t"] is None:
-        boy_joint_indices = [3, 7, 0, 11, 15, 19, 4, 8, 1, 12, 16, 20, 5, 9, 13, 17, 21, 23, 25, 6, 10, 14, 18, 22, 24, 26]
-#[0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28]
+    all_joint_names = env.scene["robot"].data.joint_names
+    boy_joint_names = get_robot_boy_joint_names()
+    joint_key = tuple(all_joint_names)
+    if (
+        _obs_cache["device"] != device
+        or _obs_cache["boy_idx_t"] is None
+        or _obs_cache["boy_joint_key"] != joint_key
+    ):
+        joint_to_idx = {name: i for i, name in enumerate(all_joint_names)}
+        missing = [name for name in boy_joint_names if name not in joint_to_idx]
+        if missing:
+            raise ValueError(
+                f"[h12_state] Missing H1-2 joints: {missing}. Available joints: {all_joint_names}"
+            )
+        boy_joint_indices = [joint_to_idx[name] for name in boy_joint_names]
         _obs_cache["boy_idx_t"] = torch.tensor(boy_joint_indices, dtype=torch.long, device=device)
+        _obs_cache["boy_joint_key"] = joint_key
         _obs_cache["device"] = device
         _obs_cache["batch"] = None  # force re-init batch-shaped buffers
 

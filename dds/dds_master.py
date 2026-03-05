@@ -3,7 +3,10 @@
 import time
 import threading
 from typing import Dict, List, Optional
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
+try:
+    from unitree_sdk2py.core.channel import ChannelFactoryInitialize
+except ImportError:
+    ChannelFactoryInitialize = None
 from dds.dds_base import DDSObject
 
 
@@ -56,6 +59,11 @@ class DDSManager:
         if self.dds_initialized:
             return True
         
+        if ChannelFactoryInitialize is None:
+            print("[DDSManager] unitree_sdk2py not found, DDS features are disabled")
+            self.dds_initialized = False
+            return False
+
         try:
             ChannelFactoryInitialize(1)
             self.dds_initialized = True

@@ -21,7 +21,7 @@ parser.add_argument(
     "--urdf",
     type=str,
     default=None,
-    help="Absolute path to H1-2 URDF file. If omitted, uses --variant under assets/robots/h1_2-wholebody-asset-urdf.",
+    help="Absolute path to H1-2 URDF file. If omitted, uses --variant under assets/robots/h1_2_description.",
 )
 parser.add_argument(
     "--variant",
@@ -76,14 +76,14 @@ def main() -> None:
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     default_urdf_by_variant = {
-        "inspire": "assets/robots/h1_2-wholebody-asset-urdf/h1_2.urdf",
-        "ftp": "assets/robots/h1_2-wholebody-asset-urdf/h1_2_with_FTP_hand.urdf",
-        "handless": "assets/robots/h1_2-wholebody-asset-urdf/h1_2_handless.urdf",
+        "inspire": "assets/robots/h1_2_description/h1_2.urdf",
+        "ftp": "assets/robots/h1_2_description/h1_2_with_FTP_hand.urdf",
+        "handless": "assets/robots/h1_2_description/h1_2_handless.urdf",
     }
     default_output_by_variant = {
-        "inspire": "assets/robots/h1_2-26dof-inspire-floating-usd/h1_2_26dof_with_inspire_floating.usd",
-        "ftp": "assets/robots/h1_2-26dof-ftp-floating-usd/h1_2_26dof_with_ftp_floating.usd",
-        "handless": "assets/robots/h1_2-26dof-handless-floating-usd/h1_2_26dof_handless_floating.usd",
+        "inspire": "assets/robots/h1_2_official/generated/h1_2_floating_generated.usd",
+        "ftp": "assets/robots/h1_2_official/generated/h1_2_with_ftp_hand_floating_generated.usd",
+        "handless": "assets/robots/h1_2_official/generated/h1_2_handless_floating_generated.usd",
     }
     chosen_urdf = args_cli.urdf or default_urdf_by_variant[args_cli.variant]
     chosen_output = args_cli.output or default_output_by_variant[args_cli.variant]

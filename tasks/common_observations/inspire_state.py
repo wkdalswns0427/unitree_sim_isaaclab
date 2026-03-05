@@ -22,6 +22,7 @@ _obs_cache = {
     "device": None,
     "batch": None,
     "inspire_idx_t": None,
+    "inspire_joint_key": None,
     "inspire_idx_batch": None,
     "pos_buf": None,
     "vel_buf": None,
@@ -117,9 +118,23 @@ def get_robot_inspire_joint_states(
     
 
     global _obs_cache
-    if _obs_cache["device"] != device or _obs_cache["inspire_idx_t"] is None:
-        inspire_joint_indices = [36, 37, 35, 34, 48, 38, 31, 32, 30, 29, 43, 33]
+    all_joint_names = env.scene["robot"].data.joint_names
+    inspire_joint_names = get_robot_girl_joint_names()
+    joint_key = tuple(all_joint_names)
+    if (
+        _obs_cache["device"] != device
+        or _obs_cache["inspire_idx_t"] is None
+        or _obs_cache["inspire_joint_key"] != joint_key
+    ):
+        joint_to_idx = {name: i for i, name in enumerate(all_joint_names)}
+        missing = [name for name in inspire_joint_names if name not in joint_to_idx]
+        if missing:
+            raise ValueError(
+                f"[inspire_state] Missing Inspire joints: {missing}. Available joints: {all_joint_names}"
+            )
+        inspire_joint_indices = [joint_to_idx[name] for name in inspire_joint_names]
         _obs_cache["inspire_idx_t"] = torch.tensor(inspire_joint_indices, dtype=torch.long, device=device)
+        _obs_cache["inspire_joint_key"] = joint_key
         _obs_cache["device"] = device
         _obs_cache["batch"] = None
     idx_t = _obs_cache["inspire_idx_t"]
