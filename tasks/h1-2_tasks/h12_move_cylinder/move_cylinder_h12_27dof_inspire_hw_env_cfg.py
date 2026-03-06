@@ -20,6 +20,29 @@ from tasks.common_config import H12RobotPresets, CameraPresets  # isort: skip
 from tasks.common_event.event_manager import SimpleEvent, SimpleEventManager
 from tasks.common_scene.base_scene_pickplace_cylindercfg_wholebody import TableCylinderSceneCfgWH
 
+# Task target: pick the cylinder and place it 1 ft (0.3048 m) to the +x direction.
+_OBJECT_INIT_X = -2.58514
+_OBJECT_INIT_Y = -2.78975
+_ONE_FOOT_M = 0.3048
+_TARGET_X = _OBJECT_INIT_X + _ONE_FOOT_M
+_TARGET_Y = _OBJECT_INIT_Y
+_TARGET_Z = 0.855
+
+# Workspace and goal-zone bounds for termination/reward.
+_MIN_X = _OBJECT_INIT_X - 0.20
+_MAX_X = _TARGET_X + 0.25
+_MIN_Y = _OBJECT_INIT_Y - 0.25
+_MAX_Y = _OBJECT_INIT_Y + 0.25
+_MIN_H = 0.5
+_POST_HALF_X = 0.08
+_POST_HALF_Y = 0.10
+_POST_MIN_X = _TARGET_X - _POST_HALF_X
+_POST_MAX_X = _TARGET_X + _POST_HALF_X
+_POST_MIN_Y = _TARGET_Y - _POST_HALF_Y
+_POST_MAX_Y = _TARGET_Y + _POST_HALF_Y
+_POST_MIN_H = 0.81
+_POST_MAX_H = 0.9
+
 @configclass
 class ObjectTableSceneCfg(TableCylinderSceneCfgWH):
     """Object-table scene config for H1-2 wholebody move task."""
@@ -61,10 +84,11 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         robot_joint_state = ObsTerm(func=mdp.get_robot_boy_joint_states, params={"enable_dds": False})
         robot_inspire_state = ObsTerm(func=mdp.get_robot_inspire_joint_states, params={"enable_dds": False})
+        camera_image = ObsTerm(func=mdp.get_camera_image)
 
         def __post_init__(self):
             self.enable_corruption = False
-            self.concatenate_terms = True
+            self.concatenate_terms = False
 
     policy: PolicyCfg = PolicyCfg()
 
@@ -75,13 +99,11 @@ class TerminationsCfg:
     object_out_of_workspace = DoneTerm(
         func=mdp.reset_object_estimate,
         params={
-            # Keep object inside a translated version of the default move-cylinder workspace.
-            # The wholebody scene object starts near (-2.585, -2.790, 0.84).
-            "min_x": -2.66,
-            "max_x": -1.24,
-            "min_y": -2.99,
-            "max_y": -2.49,
-            "min_height": 0.5,
+            "min_x": _MIN_X,
+            "max_x": _MAX_X,
+            "min_y": _MIN_Y,
+            "max_y": _MAX_Y,
+            "min_height": _MIN_H,
         },
     )
 
@@ -94,21 +116,21 @@ class RewardsCfg:
         params={
             # Disable DDS reward publishing for RL training runs.
             "enable_dds": False,
-            # Wholebody scene is translated far from origin, so align workspace and target bounds.
-            "min_x": -2.66,
-            "max_x": -1.24,
-            "min_y": -2.99,
-            "max_y": -2.49,
-            "min_height": 0.5,
-            "post_min_x": -1.96,
-            "post_max_x": -1.28,
-            "post_min_y": -2.95,
-            "post_max_y": -2.62,
-            "post_min_height": 0.81,
-            "post_max_height": 0.9,
-            "target_x": -1.62,
-            "target_y": -2.785,
-            "target_z": 0.855,
+            # Goal: place 1 ft to the right (+x) from the object default location.
+            "min_x": _MIN_X,
+            "max_x": _MAX_X,
+            "min_y": _MIN_Y,
+            "max_y": _MAX_Y,
+            "min_height": _MIN_H,
+            "post_min_x": _POST_MIN_X,
+            "post_max_x": _POST_MAX_X,
+            "post_min_y": _POST_MIN_Y,
+            "post_max_y": _POST_MAX_Y,
+            "post_min_height": _POST_MIN_H,
+            "post_max_height": _POST_MAX_H,
+            "target_x": _TARGET_X,
+            "target_y": _TARGET_Y,
+            "target_z": _TARGET_Z,
             "dense_xy_weight": 0.4,
             "dense_z_weight": 0.2,
             "dense_xy_scale": 4.0,

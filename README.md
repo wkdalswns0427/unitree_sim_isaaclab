@@ -66,7 +66,7 @@ cd /home/{USER}/mj_ws/unitree_sim_isaaclab
 conda activate rical_unitree
 python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-G129-Dex1-Wholebody --enable_dex1_dds --robot_type g129
 
-python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody --enable_inspire_dds --robot_type h1_2
+python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-WholeBody --enable_inspire_dds --robot_type h1_2
 
 ```
 
@@ -103,7 +103,7 @@ Important:
 ## 4.1 Train H1-2 Wholebody Policy (PPO)
 
 This repo now includes a local RSL-RL training entrypoint for:
-- `Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody`
+- `Isaac-Move-Cylinder-H12-WholeBody`
 
 Run training:
 
@@ -113,7 +113,7 @@ conda activate rical_unitree
 export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 
 python scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --task Isaac-Move-Cylinder-H12-WholeBody \
   --device cuda \
   --headless \
   --num_envs 64 \
@@ -130,7 +130,7 @@ Run sim with your trained ONNX:
 python sim_main.py \
   --device cuda \
   --enable_cameras \
-  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --task Isaac-Move-Cylinder-H12-WholeBody \
   --enable_inspire_dds \
   --robot_type h1_2 \
   --model_path logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/exported/policy.onnx
@@ -226,7 +226,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 python sim_main.py \
   --device cuda \
   --enable_cameras \
-  --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+  --task Isaac-Move-Cylinder-H12-WholeBody \
   --enable_inspire_dds \
   --robot_type h1_2 \
   --replay_data \

@@ -4,7 +4,7 @@ H1-2 wholebody keyboard walk command publisher.
 
 Use with:
   python3 sim_main.py --device cuda --enable_cameras \
-    --task Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody \
+    --task Isaac-Move-Cylinder-H12-WholeBody \
     --enable_inspire_dds --robot_type h1_2 --wait_for_keyboard_start
 
 Then run this script in another terminal:

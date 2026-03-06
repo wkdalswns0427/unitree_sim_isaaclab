@@ -7,7 +7,7 @@ from . import warehouse_walk_h12_27dof_inspire_hw_env_cfg
 
 
 gym.register(
-    id="Isaac-Warehouse-Walk-H12-27dof-Inspire-Wholebody",
+    id="Isaac-Warehouse-Walk-H12-Wholebody",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": warehouse_walk_h12_27dof_inspire_hw_env_cfg.WarehouseWalkH12InspireWholebodyEnvCfg,

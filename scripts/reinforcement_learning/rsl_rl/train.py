@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL for 
 parser.add_argument(
     "--task",
     type=str,
-    default="Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody",
+    default="Isaac-Move-Cylinder-H12-WholeBody",
     help="Task name.",
 )
 parser.add_argument(

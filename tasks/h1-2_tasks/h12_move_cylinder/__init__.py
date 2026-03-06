@@ -9,7 +9,7 @@ from . import move_cylinder_h12_27dof_inspire_hw_env_cfg
 
 
 gym.register(
-    id="Isaac-Move-Cylinder-H12-27dof-Inspire-Wholebody",
+    id="Isaac-Move-Cylinder-H12-WholeBody",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": move_cylinder_h12_27dof_inspire_hw_env_cfg.MoveCylinderH1227dofInspireWholebodyEnvCfg,

@@ -162,8 +162,8 @@ class H12RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.dof_torques_l2.weight = 0.0
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg("robot", joint_names=LOWER_BODY_JOINTS)
 
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 0.6)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 1.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-0.5, 0.5)
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
