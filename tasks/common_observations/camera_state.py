@@ -37,6 +37,7 @@ _camera_cache = {
     'last_scene_id': None,
     'frame_step': 0,
     'write_interval_steps': 2,
+    'no_image_warned': False,
 }
 
 
@@ -77,8 +78,14 @@ def get_camera_image(
         dict: dictionary containing multiple camera images
     """
     global _return_placeholder
-    if _return_placeholder is None:
-        _return_placeholder = torch.zeros((1, 480, 640, 3))
+    env_count = int(getattr(env, "num_envs", 1))
+    device = getattr(env, "device", "cpu")
+    if (
+        _return_placeholder is None
+        or _return_placeholder.shape[0] != env_count
+        or str(_return_placeholder.device) != str(device)
+    ):
+        _return_placeholder = torch.zeros((env_count, 480, 640, 3), device=device)
 
 
     _camera_cache['frame_step'] = (_camera_cache['frame_step'] + 1) % max(1, _camera_cache['write_interval_steps'])
@@ -160,6 +167,7 @@ def get_camera_image(
     
 
     if images and _camera_cache['frame_step'] == 0:
+        _camera_cache['no_image_warned'] = False
         _ensure_async_started()
         try:
             
@@ -169,7 +177,8 @@ def get_camera_image(
         except Exception:
             pass
     elif not images:
-        print("[camera_state] No camera images found in the environment")
+        if not _camera_cache['no_image_warned']:
+            print("[camera_state] No camera images found in the environment")
+            _camera_cache['no_image_warned'] = True
     
     return _return_placeholder
-

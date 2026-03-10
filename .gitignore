@@ -122,3 +122,5 @@ data/
 assets/
 assets.*
 assets
+
+outputs/

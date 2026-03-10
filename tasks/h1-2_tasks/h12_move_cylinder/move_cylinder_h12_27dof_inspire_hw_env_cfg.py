@@ -84,6 +84,13 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         robot_joint_state = ObsTerm(func=mdp.get_robot_boy_joint_states, params={"enable_dds": False})
         robot_inspire_state = ObsTerm(func=mdp.get_robot_inspire_joint_states, params={"enable_dds": False})
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    @configclass
+    class CameraCfg(ObsGroup):
         camera_image = ObsTerm(func=mdp.get_camera_image)
 
         def __post_init__(self):
@@ -91,6 +98,7 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     policy: PolicyCfg = PolicyCfg()
+    camera: CameraCfg = CameraCfg()
 
 
 @configclass

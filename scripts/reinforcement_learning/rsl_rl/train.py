@@ -101,6 +101,14 @@ def main():
         for camera_name in ("front_camera", "left_wrist_camera", "right_wrist_camera", "robot_camera", "world_camera"):
             if hasattr(env_cfg.scene, camera_name):
                 setattr(env_cfg.scene, camera_name, None)
+        # Some custom tasks include image terms inside the policy observations.
+        # RSL-RL MLP runners expect 1D observations, so drop camera term in non-video training.
+        if (
+            hasattr(env_cfg, "observations")
+            and hasattr(env_cfg.observations, "policy")
+            and hasattr(env_cfg.observations.policy, "camera_image")
+        ):
+            env_cfg.observations.policy.camera_image = None
     if hasattr(env_cfg, "rewards") and hasattr(env_cfg.rewards, "reward"):
         reward_params = getattr(env_cfg.rewards.reward, "params", None)
         if reward_params is None:

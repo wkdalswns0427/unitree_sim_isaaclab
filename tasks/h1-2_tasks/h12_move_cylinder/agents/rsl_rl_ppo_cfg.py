@@ -11,6 +11,10 @@ class MoveCylinderH12InspireWholebodyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 3000
     save_interval = 50
     experiment_name = "h12_move_cylinder_wholebody"
+    obs_groups = {
+        "policy": ["policy"],
+        "critic": ["policy"],
+    }
 
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -35,4 +39,3 @@ class MoveCylinderH12InspireWholebodyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
-
