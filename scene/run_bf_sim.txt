@@ -1,0 +1,4 @@
+unset RMW_IMPLEMENTATION
+unset CYCLONEDDS_URI
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp

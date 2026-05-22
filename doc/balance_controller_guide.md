@@ -12,13 +12,13 @@ The RL policy already knows how to balance. The infrastructure (`DDSRLActionProv
 
 ```bash
 python scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-H12-Velocity-ManagerBased-v0 \
+  --task Isaac-H12-Velocity-Legonly-v0 \
   --device cuda --headless --num_envs 4096 --max_iterations 5000
 ```
 
 The training script auto-exports `policy.onnx` and `policy.pt` to:
 ```
-logs/rsl_rl/h12_velocity_flat/<timestamp>/exported/
+logs/rsl_rl/h12_velocity_legonly/<timestamp>/exported/
 ```
 
 ### Step 2: Verify the exported policy
@@ -39,7 +39,7 @@ EOF
 ```bash
 python sim_main.py \
   --device cuda --enable_cameras \
-  --task Isaac-Move-Cylinder-H12-WholeBody \
+  --task Isaac-H12-Velocity-Wholebody-v0 \
   --enable_inspire_dds --robot_type h1_2 \
   --model_path logs/rsl_rl/h12_velocity_flat/<timestamp>/exported/policy.onnx
 ```
@@ -285,7 +285,7 @@ Before running on real hardware, test via DDS bridge in sim:
 
 ```bash
 # Terminal A: sim with DDS enabled
-python sim_main.py --task Isaac-Move-Cylinder-H12-WholeBody \
+python sim_main.py --task Isaac-H12-Velocity-Wholebody-v0 \
   --enable_inspire_dds --robot_type h1_2 --device cuda
 
 # Terminal B: your balance controller (targets go through DDS to sim)

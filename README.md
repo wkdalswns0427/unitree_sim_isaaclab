@@ -65,9 +65,6 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 cd /home/{USER}/mj_ws/unitree_sim_isaaclab
 conda activate rical_unitree
 python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-G129-Dex1-Wholebody --enable_dex1_dds --robot_type g129
-
-python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-WholeBody --enable_inspire_dds --robot_type h1_2
-
 ```
 
 Terminal B (keyboard publisher):
@@ -100,78 +97,57 @@ Important:
 - Keyboard control in `Wholebody` tasks sends high-level run commands (`x/y/yaw/height`) to the RL policy.
 - If the loaded policy is not trained for your robot/task pair, the robot may not move even though commands are being published.
 
-## 4.1 Train H1-2 Wholebody Policy (PPO)
-
-This repo now includes a local RSL-RL training entrypoint for:
-- `Isaac-Move-Cylinder-H12-WholeBody`
-
-Run training:
-
-```bash
-cd /home/{USER}/mj_ws/unitree_sim_isaaclab
-conda activate rical_unitree
-export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
-
-python scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-Move-Cylinder-H12-WholeBody \
-  --device cuda \
-  --headless \
-  --num_envs 64 \
-  --max_iterations 3000
-```
-
-Outputs:
-- checkpoints/logs: `logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/`
-- exported policy: `logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/exported/policy.onnx`
-
-Run sim with your trained ONNX:
-
-```bash
-python sim_main.py \
-  --device cuda \
-  --enable_cameras \
-  --task Isaac-Move-Cylinder-H12-WholeBody \
-  --enable_inspire_dds \
-  --robot_type h1_2 \
-  --model_path logs/rsl_rl/h12_move_cylinder_wholebody/<run_timestamp>/exported/policy.onnx
-```
-
 ## 5. H1-2 Locomotion (Velocity Walking) Training
 
 ### Available tasks
 
-| Task ID | Terrain | Notes |
-|---|---|---|
-| `Isaac-H12-Velocity-ManagerBased-v0` | Flat | Main locomotion task, 21-DOF control |
+| Task ID | Terrain | Action subset | Notes |
+|---|---|---|---|
+| `Isaac-H12-Velocity-Legonly-v0` | Flat | 13-DOF (legs + torso) | Current recommended config; arms held at default |
+| `Isaac-H12-Velocity-Wholebody-v0` | Flat | 21-DOF (legs + torso + arms) | Legacy config used for 2026-05-08 / 2026-05-15 runs |
 
 ### Train
 
 ```bash
+# Lower-body-only (13-DOF) — default
 python scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-H12-Velocity-ManagerBased-v0 \
-  --device cuda --headless \
+  --task Isaac-H12-Velocity-Legonly-v0 \
+  --device cuda \
+  --num_envs 4096 \
+  --max_iterations 5000
+
+# Legacy wholebody (21-DOF)
+python scripts/reinforcement_learning/rsl_rl/train_wholebody.py \
+  --device cuda \
   --num_envs 4096 \
   --max_iterations 5000
 ```
 
 Use `--num_envs 1024` if VRAM is limited. Logs and checkpoints go to:
 ```
-logs/rsl_rl/h12_velocity_flat/<timestamp>/
-logs/rsl_rl/h12_velocity_flat/<timestamp>/exported/policy.onnx   ← auto-exported
+logs/rsl_rl/h12_velocity_legonly/<timestamp>/         ← Legonly
+logs/rsl_rl/h12_velocity_wholebody/<timestamp>/       ← Wholebody
+logs/rsl_rl/<exp>/<timestamp>/exported/policy.onnx    ← auto-exported
 ```
 
 Monitor training with TensorBoard:
 ```bash
-tensorboard --logdir logs/rsl_rl/h12_velocity_flat
+tensorboard --logdir logs/rsl_rl/h12_velocity_legonly
 ```
 
 ### Play
 
 ```bash
+# Lower-body-only
 python scripts/reinforcement_learning/rsl_rl/play.py \
-  --task Isaac-H12-Velocity-ManagerBased-v0 \
+  --task Isaac-H12-Velocity-Legonly-v0 \
   --num_envs 8 \
-  --checkpoint logs/rsl_rl/h12_velocity_flat/<timestamp>/model_5000.pt
+  --checkpoint logs/rsl_rl/h12_velocity_legonly/<timestamp>/model_5000.pt
+
+# Wholebody (also handles the 2026-05-15_14-41-04 checkpoint)
+python scripts/reinforcement_learning/rsl_rl/play_wholebody.py \
+  --num_envs 8 \
+  --checkpoint logs/rsl_rl/h12_velocity_flat/2026-05-15_14-41-04/model_6999.pt
 ```
 
 Pass `--num_envs 1` for cleaner single-robot debugging.
@@ -318,7 +294,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/teleimager/src
 python sim_main.py \
   --device cuda \
   --enable_cameras \
-  --task Isaac-Move-Cylinder-H12-WholeBody \
+  --task Isaac-H12-Velocity-Wholebody-v0 \
   --enable_inspire_dds \
   --robot_type h1_2 \
   --replay_data \

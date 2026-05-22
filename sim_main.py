@@ -18,6 +18,18 @@ import torch
 import gymnasium as gym
 from pathlib import Path
 
+# Disable iceoryx shared memory in unitree_sdk2py — no iox-roudi daemon in sim.
+# Must run before any DDS channel is initialized. See doc/balance_controller_guide.md.
+try:
+    import unitree_sdk2py.core.channel as _ch
+    _shm_off = "<SharedMemory><Enable>false</Enable></SharedMemory>"
+    for _attr in ("ChannelConfigAutoDetermine", "ChannelConfigHasInterface"):
+        _cfg = getattr(_ch, _attr, None)
+        if _cfg and _shm_off not in _cfg:
+            setattr(_ch, _attr, _cfg.replace("</Domain>", f"{_shm_off}</Domain>"))
+except ImportError:
+    pass
+
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 
@@ -737,4 +749,4 @@ if __name__ == "__main__":
 # python sim_main.py --device cpu  --enable_cameras  --task Isaac-PickPlace-Cylinder-H12-27dof-Inspire-Joint  --enable_inspire_dds --robot_type h1_2
 # python sim_main.py --device cpu  --enable_cameras  --task Isaac-PickPlace-RedBlock-H12-27dof-Inspire-Joint  --enable_inspire_dds --robot_type h1_2
 # python sim_main.py --device cpu  --enable_cameras  --task Isaac-Stack-RgyBlock-H12-27dof-Inspire-Joint --enable_inspire_dds --robot_type h1_2
-# python sim_main.py --device cpu  --enable_cameras  --task Isaac-Move-Cylinder-H12-WholeBody --enable_inspire_dds --robot_type h1_2
+# python sim_main.py --device cpu  --enable_cameras  --task Isaac-H12-Velocity-Wholebody-v0 --enable_inspire_dds --robot_type h1_2

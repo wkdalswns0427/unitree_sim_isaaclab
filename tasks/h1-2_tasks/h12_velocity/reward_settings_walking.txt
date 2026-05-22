@@ -1,0 +1,171 @@
+================================================================================
+Isaac-H12-Velocity-Legonly-v0 — Working Reward Configuration (lower-body only)
+================================================================================
+Snapshot of the reward / action / observation set in current rough_env_cfg.py.
+Action subset is now 13-DOF (legs + torso) — arms are NOT in the action space.
+The arm joints are held at their actuator defaults via PD; the
+``joint_deviation_arms`` reward still anchors them softly.
+
+Source: tasks/h1-2_tasks/h12_velocity/rough_env_cfg.py
+Custom rewards: tasks/h1-2_tasks/h12_velocity/mdp/rewards.py
+
+--------------------------------------------------------------------------------
+REWARD TERMS (class H12Rewards, inheriting RewardsCfg)
+--------------------------------------------------------------------------------
+
+Safety
+    termination_penalty        weight = -200.0   func = mdp.is_terminated
+    lin_vel_z_l2               DISABLED (None)   H1 baseline — natural CoM bob
+
+Tracking
+    track_lin_vel_xy_exp       weight = +1.5     std = 0.5
+                               func = mdp.track_lin_vel_xy_yaw_frame_exp
+    track_ang_vel_z_exp        weight = +1.0     std = 0.5
+                               func = mdp.track_ang_vel_z_world_exp
+
+Gait alternation (the anti-pendulum stack)
+    feet_air_time              weight = +1.0     threshold = 0.4
+                               func = mdp.feet_air_time   (EVENT-BASED)
+                               body = .*_ankle_roll_link
+    no_single_foot_park        weight = -1.0     max_single_stance_time = 0.5
+                               func = h12_rewards.sustained_single_foot_contact
+                               force_threshold = 20.0
+                               body = .*_ankle_roll_link
+    leg_mirror                 weight = -2.0
+                               func = h12_rewards.leg_antisymmetry_penalty
+                               joints = [left_hip_pitch, left_knee, left_ankle_pitch,
+                                         right_hip_pitch, right_knee, right_ankle_pitch]
+                               preserve_order = True
+    flight_phase               weight = -1.0
+                               func = h12_rewards.flight_phase_penalty
+                               body = .*_ankle_roll_link
+                               force_threshold = 20.0
+    feet_slide                 weight = -0.4
+                               func = mdp.feet_slide
+                               body = .*_ankle_roll_link
+
+Per-side swing knee flexion (breaks asymmetric local optima)
+    swing_knee_flexion_left    weight = +0.3
+                               func = h12_rewards.swing_knee_flexion
+                               joint = left_knee_joint
+                               body  = left_ankle_roll_link
+                               min_flexion = 0.2   target_flexion = 0.5   force_threshold = 20.0
+    swing_knee_flexion_right   weight = +0.3
+                               (same params as left, mirrored joint/body)
+
+Joint limits
+    dof_pos_limits             weight = -1.0
+                               func = mdp.joint_pos_limits
+                               joints = [.*_ankle_pitch_joint, .*_ankle_roll_joint]
+
+Posture regularization
+    joint_deviation_hip        weight = -0.2
+                               joints = [.*_hip_yaw_joint, .*_hip_roll_joint]
+    joint_deviation_arms       weight = -0.4
+                               joints = [.*_shoulder_.*_joint, .*_elbow_joint, .*_wrist_.*_joint]
+                               Note: arms are NOT in the action subset; this term
+                               regularizes the PD-held arm pose against gait-driven
+                               passive motion.
+    joint_deviation_torso      weight = -0.1
+                               joints = torso_joint
+    stand_still                DISABLED (None)
+
+Light stability (set in __post_init__)
+    ang_vel_xy_l2              weight = -0.05
+    undesired_contacts         DISABLED
+    flat_orientation_l2        weight = -2.5     (raised from H1's -1.0)
+    action_rate_l2             weight = -0.005
+    dof_acc_l2                 weight = -1.25e-7   (lower body only)
+    dof_torques_l2             weight = 0.0      H1 baseline — torque penalty off
+
+--------------------------------------------------------------------------------
+TERMINATIONS
+--------------------------------------------------------------------------------
+    base_contact               body = torso_link
+    bad_orientation            limit_angle = 0.9 rad (~52°)
+    root_height                minimum_height = 0.6 m
+    time_out                   (default from base cfg)
+
+--------------------------------------------------------------------------------
+COMMANDS (base_velocity)
+--------------------------------------------------------------------------------
+    rel_standing_envs   = 0.0
+    rel_heading_envs    = 0.0
+    heading_command     = False
+    lin_vel_x range     = (0.0, 2.0)
+    lin_vel_y range     = (0.0, 0.0)
+    ang_vel_z range     = (-1.0, 1.0)
+    heading range       = (0.0, 0.0)
+
+--------------------------------------------------------------------------------
+ROBOT / ACTUATOR OVERRIDES
+--------------------------------------------------------------------------------
+    Preset           : H12RobotPresets.h12_27dof_inspire_wholebody_floating
+    init_pos         : (0.0, 0.0, 1.0)
+    init_rot         : (1.0, 0.0, 0.0, 0.0)   (w, x, y, z)
+    solver_velocity_iteration_count : 4
+    feet effort_limit_sim : 45 Nm (ankle_pitch, ankle_roll)
+    feet stiffness   : 20.0
+    feet damping     : 2.5
+
+Action subset (13-DOF, preserve_order=True, scale=0.5)
+    Legs : left/right [hip_yaw, hip_roll, hip_pitch, knee, ankle_pitch, ankle_roll]
+    Core : torso_joint
+    Arms : NONE — shoulders, elbows, and wrists are all held at default by their
+           actuator config.  They still appear in joint_deviation_arms for
+           regularization but the policy never commands them.
+
+Observation subset (legs + torso only; obs dim = 51)
+    base_lin_vel(3) + base_ang_vel(3) + projected_gravity(3) + velocity_commands(3)
+    + joint_pos_rel(13) + joint_vel_rel(13) + last_action(13)
+    = 51 (flat env; height_scan disabled)
+
+--------------------------------------------------------------------------------
+RANDOMIZATION (H1 reference)
+--------------------------------------------------------------------------------
+    push_robot                  = None (disabled)
+    add_base_mass               = None
+    base_com                    = None
+    reset_robot_joints          : position_range = (1.0, 1.0)
+    base_external_force_torque  : body = torso_link
+    reset_base.pose_range       : x=(-0.5,0.5), y=(-0.5,0.5), yaw=(-π,π)
+    reset_base.velocity_range   : all zero
+
+--------------------------------------------------------------------------------
+DESIGN RATIONALE (why this works)
+--------------------------------------------------------------------------------
+Pendulum-leg failure (one leg permanently in air, one permanently grounded)
+is locked out by four reinforcing constraints:
+
+  1. feet_air_time is EVENT-BASED — pays only on the air→contact transition.
+     A leg that never lands earns zero.  (The _positive_biped variant pays
+     min(left_in_mode_time, right_in_mode_time) during single-stance and
+     allows the pendulum gait to saturate both terms at the threshold.)
+
+  2. no_single_foot_park penalizes parking on one loaded foot longer than
+     max_single_stance_time = 0.5 s — directly punishes the grounded-leg
+     side of the pendulum.
+
+  3. flight_phase penalizes frames where neither foot is loaded while the
+     robot is commanded to move.  At higher cadences the policy can shortcut
+     to a hop ("jump to next step") which the per-foot air-time term doesn't
+     forbid.  Pairs with no_single_foot_park: together they require
+     exactly-one-foot-loaded during locomotion.
+
+  4. leg_mirror enforces (left_delta + right_delta)² ≈ 0 in the sagittal
+     plane (hip-pitch / knee / ankle-pitch).  Forces hips/knees/ankles into
+     mirror-image anti-phase motion.
+
+Per-side swing_knee_flexion breaks the asymmetric-posture local optimum:
+only the swinging leg collects, so a one-leg-pendulum policy captures half
+the signal vs. a true alternating gait.  Target 0.5 rad ≈ 29° gives clear
+toe-clearance without forcing a high-stepping march.
+
+flat_orientation_l2 = -2.5 (raised from H1's -1.0) keeps the torso upright
+against the larger H1-2 arm/torso inertia.  bad_orientation termination at
+0.9 rad cuts episodes before the policy can farm lie-down survival reward.
+
+Dropping the arms from the action subset (13-DOF) shrinks the policy output
+and removes the wholebody-momentum coupling that previously produced wobbly
+arm swings.  Arms now follow the gait passively, anchored by
+joint_deviation_arms and the wholebody-floating actuator config.

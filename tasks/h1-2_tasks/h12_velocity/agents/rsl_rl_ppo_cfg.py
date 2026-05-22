@@ -39,10 +39,12 @@ class H12RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @configclass
 class H12FlatPPORunnerCfg(H12RoughPPORunnerCfg):
+    """13-DOF lower-body-only action subset (legs + torso), flat terrain."""
+
     def __post_init__(self):
         super().__post_init__()
         self.max_iterations = 5000
-        self.experiment_name = "h12_velocity_flat"
+        self.experiment_name = "h12_velocity_legonly"
 
 
 @configclass
@@ -51,3 +53,17 @@ class H12VelocityPPORunnerCfg(H12FlatPPORunnerCfg):
 
     def __post_init__(self):
         super().__post_init__()
+
+
+@configclass
+class H12WholebodyFlatPPORunnerCfg(H12FlatPPORunnerCfg):
+    """21-DOF wholebody action subset (legs + torso + arms), flat terrain.
+
+    Separate experiment_name so wholebody runs land in their own log dir
+    (``logs/rsl_rl/h12_velocity_wholebody/``) rather than mixing with the
+    legonly runs.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.experiment_name = "h12_velocity_wholebody"

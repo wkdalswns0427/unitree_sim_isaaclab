@@ -29,7 +29,7 @@ python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinde
 **Run wholebody task (requires keyboard publisher in a second terminal):**
 ```bash
 # Terminal A
-python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-WholeBody --enable_inspire_dds --robot_type h1_2
+python sim_main.py --device cuda --enable_cameras --task Isaac-H12-Velocity-Wholebody-v0 --enable_inspire_dds --robot_type h1_2
 
 # Terminal B
 python nontask_control/h12_walk_keyboard.py --backend stdin --channel 1
@@ -45,20 +45,24 @@ python sim_main.py --device cuda --enable_cameras --task Isaac-PickPlace-Cylinde
 python sim_main.py --device cuda ... --replay_data --file_path /path/to/source --generate_data --generate_data_dir ./data_gen
 ```
 
-**Train H1-2 wholebody policy (RSL-RL PPO):**
+**Train H1-2 policies (RSL-RL PPO):**
 ```bash
+# Velocity walking (13-DOF legonly, default)
 python scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-Move-Cylinder-H12-WholeBody \
-  --device cuda --headless --num_envs 64 --max_iterations 3000
+  --task Isaac-H12-Velocity-Legonly-v0 \
+  --device cuda --headless --num_envs 4096 --max_iterations 6000
+
+# Squat (height-tracking, 13-DOF)
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task Isaac-H12-Squat-v0 \
+  --device cuda --headless --num_envs 4096 --max_iterations 5000
+
+# Stand (balanced standing, 13-DOF)
+python scripts/reinforcement_learning/rsl_rl/train.py \
+  --task Isaac-H12-Stand-v0 \
+  --device cuda --headless --num_envs 4096 --max_iterations 3000
 ```
 Training logs and ONNX export go to `logs/rsl_rl/<experiment_name>/<timestamp>/`.
-
-**Run sim with trained ONNX policy:**
-```bash
-python sim_main.py --device cuda --enable_cameras --task Isaac-Move-Cylinder-H12-WholeBody \
-  --enable_inspire_dds --robot_type h1_2 \
-  --model_path logs/rsl_rl/h12_move_cylinder_wholebody/<timestamp>/exported/policy.onnx
-```
 
 ## Architecture
 

@@ -7,14 +7,15 @@ contains various task implementations for the G1 robot, such as pick and place, 
 
 # use relative import
 
-from . import h12_move_cylinder
-from . import h12_warehouse_walk_27dof_inspire_wholebody
 from . import h12_velocity
+from . import h12_squat
+from . import h12_stand
 
 
 # export all modules
 __all__ = [
-        "h12_move_cylinder",
-        "h12_warehouse_walk_27dof_inspire_wholebody",
+
         "h12_velocity",
+        "h12_squat",
+        "h12_stand",
 ]

@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL for 
 parser.add_argument(
     "--task",
     type=str,
-    default="Isaac-Move-Cylinder-H12-WholeBody",
+    default="Isaac-H12-Velocity-Legonly-v0",
     help="Task name.",
 )
 parser.add_argument(
@@ -33,7 +33,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=64, help="Number of environments.")
 parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-parser.add_argument("--max_iterations", type=int, default=None, help="Override max iterations from agent cfg.")
+parser.add_argument("--max_iterations", type=int, default=10000, help="Override max iterations from agent cfg.")
 parser.add_argument("--experiment_name", type=str, default=None, help="Override experiment name.")
 parser.add_argument("--run_name", type=str, default=None, help="Run name suffix.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
