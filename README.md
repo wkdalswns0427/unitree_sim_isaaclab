@@ -54,9 +54,9 @@ Notes:
 - If `DISPLAY` is not set, Isaac Sim runs headless automatically.
 - Headless `GLFW` warnings are common and not fatal by themselves.
 
-## 4. Move Robot with Keyboard (Wholebody Tasks Only)
+## 4. Move Robot with Keyboard (G1 Wholebody Tasks)
 
-Keyboard control publishes DDS run commands and is intended for tasks containing `Wholebody`.
+[send_commands_keyboard.py](send_commands_keyboard.py) publishes high-level DDS run commands (`x/y/yaw/height`) and is intended for the G1 wholebody tasks (task IDs containing `Wholebody`). For H1-2 joint-level teleop, see [scene/keyboard_control.py](scene/keyboard_control.py) in §6 — that path drives joint targets directly and does not need a policy loaded.
 
 Terminal A (run sim):
 
@@ -75,27 +75,18 @@ conda activate rical_unitree
 python send_commands_keyboard.py --backend stdin --channel 1
 ```
 
-H1-2 dedicated keyboard publisher (includes reset keys):
+Default keys (from `send_commands_keyboard.py`):
 
-```bash
-cd /home/{USER}/mj_ws/unitree_sim_isaaclab
-conda activate rical_unitree
-python nontask_control/h12_walk_keyboard.py --backend stdin --channel 1
-```
-
-Default keys:
-
-- `W/S`: forward/backward
-- `A/D`: left/right
-- `Z/X`: rotate left/right
+- `W/S`: forward / backward
+- `A/D`: left / right
+- `Z/X`: rotate left / right
 - `C`: crouch
-- `Q`: quit keyboard publisher
-- `U`: reset object (`reset category=1`, `h12_walk_keyboard.py`)
-- `P`: reset all (`reset category=2`, `h12_walk_keyboard.py`)
+- `SPACE`: reset commands to zero
+- `Q`: quit publisher
 
 Important:
-- Keyboard control in `Wholebody` tasks sends high-level run commands (`x/y/yaw/height`) to the RL policy.
-- If the loaded policy is not trained for your robot/task pair, the robot may not move even though commands are being published.
+- Commands are sent as a stream to the RL policy running inside `sim_main.py`. If the loaded policy was not trained for the robot/task pair, the robot may not move even though publishes succeed.
+- `--backend pynput` is the alternative on desktop sessions; `stdin` is the right choice over SSH or in a headless terminal.
 
 ## 5. H1-2 Tasks (Training & Play)
 

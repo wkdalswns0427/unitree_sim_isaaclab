@@ -105,6 +105,15 @@ ARM_INDICES_IN_LOCOMOTION: list[int] = []  # empty: arms not in policy subset
 
 POLICY_ACTION_SCALE = 0.5  # matches `self.actions.joint_pos.scale = 0.5`
 
+# Match training-time timestepping exactly so the policy sees the same
+# closed-loop dynamics it was rewarded on:
+#   physics_dt   = 1/200 s   (env_cfg.sim.dt)
+#   decimation   = 4         (env_cfg.decimation)
+#   policy rate  = 50 Hz     (= 1 / (physics_dt * decimation))
+PHYSICS_DT = 1.0 / 200.0
+DECIMATION = 4
+POLICY_HZ  = 1.0 / (PHYSICS_DT * DECIMATION)
+
 
 # Per-joint PD gains used during PPO training (H12_CFG_WITH_INSPIRE_WHOLEBODY
 # actuators + H12RoughEnvCfg feet override).  Used by scene/walk_policy.py at
@@ -184,6 +193,34 @@ _KD_SDK = {
     "left_wrist_pitch_joint":     1.0, "right_wrist_pitch_joint":     1.0,
     "left_wrist_yaw_joint":       1.0, "right_wrist_yaw_joint":       1.0,
 }
+
+# Training-time joint torque limits (N·m).  Source: H12_CFG_WITH_INSPIRE_WHOLEBODY
+# in robots/unitree.py:1340+ (effort_limit_sim), with the env-cfg override
+# at tasks/h1-2_tasks/h12_velocity/rough_env_cfg.py:237-243 applied for the
+# ankle joints (raw 35 → 45 N·m).  When the deploy USD authors a lower
+# `drive:angular:physics:maxForce` than these values, the policy's leg-swing
+# torques saturate → tracking error grows → policy diverges → fall.
+_TAU_MAX = {
+    "left_hip_yaw_joint":     88.0,  "right_hip_yaw_joint":    88.0,
+    "left_hip_roll_joint":   139.0,  "right_hip_roll_joint":  139.0,
+    "left_hip_pitch_joint":   88.0,  "right_hip_pitch_joint":  88.0,
+    "left_knee_joint":       139.0,  "right_knee_joint":      139.0,
+    "left_ankle_pitch_joint": 45.0,  "right_ankle_pitch_joint":45.0,
+    "left_ankle_roll_joint":  45.0,  "right_ankle_roll_joint": 45.0,
+    "torso_joint":            88.0,
+    "left_shoulder_pitch_joint": 25.0, "right_shoulder_pitch_joint":25.0,
+    "left_shoulder_roll_joint":  25.0, "right_shoulder_roll_joint": 25.0,
+    "left_shoulder_yaw_joint":   25.0, "right_shoulder_yaw_joint":  25.0,
+    "left_elbow_joint":          25.0, "right_elbow_joint":         25.0,
+    "left_wrist_roll_joint":     25.0, "right_wrist_roll_joint":    25.0,
+    "left_wrist_pitch_joint":     5.0, "right_wrist_pitch_joint":    5.0,
+    "left_wrist_yaw_joint":       5.0, "right_wrist_yaw_joint":      5.0,
+}
+
+# Training-time joint armature (rotor inertia reflected to joint side).
+# Source: robots/unitree.py:1371,1379,1393, etc.  Uniform 0.01 across all
+# robot joints in the wholebody actuator config.
+_ARMATURE_DEFAULT = 0.01
 
 
 # Stance-mode ankle stiffening.  The default pose has bent knees and a slight
@@ -496,8 +533,11 @@ def main() -> None:
                              "(model_N.pt) — for the raw case we reconstruct the actor MLP "
                              "in-place.  Pass --policy \"\" to disable the policy and just "
                              "hold the default pose via PD (stand-still).")
-    parser.add_argument("--rate", type=float, default=200.0,
-                        help="Outer-loop tick rate in Hz (policy step rate).")
+    parser.add_argument("--rate", type=float, default=50.0,
+                        help="Outer-loop tick rate in Hz (policy step rate).  "
+                             "Default matches training (50 Hz = 1 / (physics_dt * decimation)).  "
+                             "Capped internally at POLICY_HZ — going faster than 50 Hz would "
+                             "drift from the training-time control contract.")
     parser.add_argument("--cmd_vx", type=float, default=1.0,
                         help="Forward velocity command (m/s) sent to the policy.")
     parser.add_argument("--cmd_vy", type=float, default=0.0,
@@ -516,6 +556,16 @@ def main() -> None:
     parser.add_argument("--target_height", type=float, default=0.78,
                         help="Squat-task target pelvis height (m).  Only used "
                              "when --task=squat (or auto-detected as squat).")
+    parser.add_argument("--action_smoothing", type=float, default=0.0,
+                        help="EMA smoothing on the PD target_q (NOT on the "
+                             "obs `last_action` slot — that still gets the "
+                             "raw policy output, matching training).  "
+                             "0.0=passthrough (default).  0.5=half-and-half.  "
+                             "0.9=heavily smoothed, very damped.  Useful for "
+                             "the Legonly policy at low cmd_vx, where it "
+                             "wasn't trained to stand still and naturally "
+                             "twitches.  Trade-off: smoothed targets lag the "
+                             "policy → slower recovery from disturbances.")
     parser.add_argument("--duration", type=float, default=0.0,
                         help="Run duration seconds (0 = forever).")
     parser.add_argument("--grab", action="store_true",
@@ -551,9 +601,9 @@ def main() -> None:
     # prims saved in the USD start ticking on stage load.
     _enable_omnigraph_extensions()
 
-    import omni.timeline
     import omni.usd
     import torch
+    from isaacsim.core.api import SimulationContext
     from isaacsim.core.prims import SingleArticulation
     from isaacsim.core.utils.types import ArticulationAction
 
@@ -592,6 +642,11 @@ def main() -> None:
     joints_base = f"{args.robot_root}/joints"
     kp_map, kd_map = _KP_SDK, _KD_SDK
     seeded = 0
+    # Also author maxForce (training-time effort_limit_sim) and armature so
+    # PhysX joint dynamics match training exactly.  Without maxForce, the USD
+    # may impose a lower torque cap than training → leg-swing torques saturate
+    # → tracking error grows → policy diverges → stable-then-collapse fall.
+    from pxr import Sdf as _Sdf_seed
     for joint_name, q in POLICY_JOINT_DEFAULTS.items():
         prim = stage.GetPrimAtPath(f"{joints_base}/{joint_name}")
         if not prim.IsValid():
@@ -600,13 +655,18 @@ def main() -> None:
             ("drive:angular:physics:targetPosition", float(q)),
             ("drive:angular:physics:stiffness",      float(kp_map.get(joint_name, 100.0))),
             ("drive:angular:physics:damping",        float(kd_map.get(joint_name,   5.0))),
+            ("drive:angular:physics:maxForce",       float(_TAU_MAX.get(joint_name, 200.0))),
+            ("physxJoint:armature",                  float(_ARMATURE_DEFAULT)),
         ]:
             attr = prim.GetAttribute(attr_name)
+            if not attr.IsValid():
+                attr = prim.CreateAttribute(attr_name, _Sdf_seed.ValueTypeNames.Float)
             if attr.IsValid():
                 attr.Set(val)
         seeded += 1
-    print(f"[INFO] Authored kp/kd/target on {seeded}/{len(POLICY_JOINT_DEFAULTS)} joint prims "
-          f"(arms + waist gains match Krumi pick_cone_palms.py).")
+    print(f"[INFO] Authored kp/kd/target/maxForce/armature on {seeded}/"
+          f"{len(POLICY_JOINT_DEFAULTS)} joint prims "
+          f"(maxForce + armature match training-time ImplicitActuatorCfg).")
 
     # Stand-still / scripted-motion path: stiffen ankles so the bent-knee
     # default pose doesn't tip forward.  Skipped when a policy is provided —
@@ -631,8 +691,69 @@ def main() -> None:
         print(f"[INFO] Stance mode: stiffened {stiffened}/4 ankle joints "
               f"(kp=200 pitch / 150 roll, max_force=200 Nm).")
 
-    timeline = omni.timeline.get_timeline_interface()
-    timeline.play()
+    # Author training-time friction on the robot feet AND ensure the ground
+    # has matching friction.  Training applies:
+    #   robot rigid bodies: randomize_rigid_body_material  → static=0.6, dynamic=0.6
+    #   ground (flat plane):  RigidBodyMaterialCfg default → static=0.5, dynamic=0.5
+    # The PhysX combine mode is "average", so effective foot/ground friction
+    # ~ 0.55.  If the deploy scene's robot USD authored lower foot friction
+    # (or none), feet slip and the policy can't propel → wobble + premature
+    # fall, exactly the failure mode here.  Force-set both sides.
+    from pxr import UsdGeom, UsdPhysics, UsdShade, Sdf
+    _MATERIAL_PATH = "/World/_joint_motion_physics_material"
+    if not stage.GetPrimAtPath(_MATERIAL_PATH).IsValid():
+        mat_prim = UsdShade.Material.Define(stage, _MATERIAL_PATH).GetPrim()
+        UsdPhysics.MaterialAPI.Apply(mat_prim)
+        for attr_name, val in [
+            ("physics:staticFriction",  0.6),
+            ("physics:dynamicFriction", 0.6),
+            ("physics:restitution",     0.0),
+        ]:
+            a = mat_prim.GetAttribute(attr_name)
+            if not a.IsValid():
+                a = mat_prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
+            a.Set(float(val))
+        print(f"[INFO] Authored {_MATERIAL_PATH} (static=0.6 dynamic=0.6 restitution=0).")
+
+    # Bind it to ankle_roll_link colliders (the actual foot links) and to any
+    # ground/floor-named prim in the stage.
+    bound_feet, bound_ground = 0, 0
+    target_prims: list = []
+    for prim in stage.Traverse():
+        path = str(prim.GetPath()).lower()
+        if "ankle_roll_link" in path and prim.IsA(UsdGeom.Imageable):
+            target_prims.append((prim, "foot"))
+        if any(tok in path for tok in ("flat_plane", "ground", "floor", "terrain")) \
+                and prim.IsA(UsdGeom.Imageable):
+            target_prims.append((prim, "ground"))
+    mat = UsdShade.Material(stage.GetPrimAtPath(_MATERIAL_PATH))
+    for prim, kind in target_prims:
+        try:
+            binding = UsdShade.MaterialBindingAPI.Apply(prim)
+            binding.Bind(mat, materialPurpose="physics")
+            if kind == "foot":
+                bound_feet += 1
+            else:
+                bound_ground += 1
+        except Exception as exc:
+            print(f"[WARN] Could not bind physics material to {prim.GetPath()}: {exc}")
+    print(f"[INFO] Bound physics material to {bound_feet} foot prim(s), "
+          f"{bound_ground} ground prim(s).")
+
+    # Build a proper SimulationContext so physics_dt + decimation match the
+    # training-time env config exactly.  Without this, the USD stage's default
+    # timestep drives physics (often 60 Hz) and the policy sees dynamics it
+    # was never rewarded against — manifests as wobble, weak propulsion, or
+    # premature falls even though play.py behaves correctly with the same
+    # checkpoint.
+    sim = SimulationContext(
+        physics_dt=PHYSICS_DT,
+        rendering_dt=PHYSICS_DT * DECIMATION,
+        stage_units_in_meters=1.0,
+        backend="numpy",
+    )
+    sim.initialize_physics()
+    sim.play()
     simulation_app.update()
     simulation_app.update()
 
@@ -686,7 +807,49 @@ def main() -> None:
         if idx is not None:
             qpos[idx] = q
     art.set_joint_positions(qpos)
+    # Zero joint + base velocities so the first obs doesn't carry over a
+    # transient from physics warmup / teleport.  IsaacLab's env.reset() does
+    # the equivalent every episode; without it the first policy query sees
+    # nonzero `dq` and `base_lin_vel` even though the pose looks right.
+    try:
+        art.set_joint_velocities(np.zeros_like(qpos))
+    except Exception:
+        pass
+    try:
+        art.set_linear_velocity(np.zeros(3, dtype=np.float32))
+        art.set_angular_velocity(np.zeros(3, dtype=np.float32))
+    except Exception:
+        pass
     art.apply_action(ArticulationAction(joint_positions=qpos.copy()))
+
+    # Log spawn pose so a mismatched USD init (e.g. robot pelvis at z=0.5
+    # instead of training's 1.0) is visible — that alone can produce the
+    # "fall + jitter" failure mode even with a perfect policy.
+    try:
+        spawn_pos, spawn_quat = art.get_world_pose()
+        sp = _to_numpy(spawn_pos)
+        sq = _to_numpy(spawn_quat)
+        print(f"[INFO] Spawn pose: pos=({sp[0]:+.3f}, {sp[1]:+.3f}, "
+              f"{sp[2]:+.3f}) quat_wxyz=({sq[0]:+.3f}, {sq[1]:+.3f}, "
+              f"{sq[2]:+.3f}, {sq[3]:+.3f})  (training trained from "
+              f"pos=(0,0,1.000) quat=(1,0,0,0)).")
+    except Exception:
+        pass
+
+    # Settle for ~0.2 s at the default pose so the obs the policy sees on
+    # its first query is from a stationary robot, matching the reset-state
+    # observation distribution training was rewarded against.
+    settle_iters = int(0.2 * POLICY_HZ)   # 10 outer iters at 50 Hz
+    for _ in range(settle_iters):
+        art.apply_action(ArticulationAction(
+            joint_positions=qpos.copy(),
+            joint_indices=None,
+        ))
+        for _ in range(DECIMATION):
+            sim.step(render=False)
+    sim.render()
+    print(f"[INFO] Settled robot for {settle_iters} control steps "
+          f"({settle_iters / POLICY_HZ:.2f}s) before first policy query.")
 
     def _build_actor_mlp(actor_state_dict, obs_dim: int, action_dim: int):
         """Instantiate the **exact same** MLP class the trainer used
@@ -786,6 +949,9 @@ def main() -> None:
 
     velocity_cmd = np.array([args.cmd_vx, args.cmd_vy, args.cmd_wz], dtype=np.float32)
     last_action = np.zeros(len(LOCOMOTION_JOINT_NAMES), dtype=np.float32)
+    # EMA buffer for the smoothed PD target.  Initialized to the default pose
+    # so the very first smoothed step doesn't pull joints toward zero.
+    smoothed_target = locomotion_defaults.copy()
 
     grab_active = bool(args.grab)
     seg_idx = 0
@@ -855,9 +1021,18 @@ def main() -> None:
                 with torch.no_grad():
                     action_t = policy(torch.from_numpy(obs).unsqueeze(0))
                 action = action_t.squeeze(0).cpu().numpy().astype(np.float32)
+                # Feed RAW policy output back into the next obs.  Smoothing
+                # only the PD target leaves the policy's own internal feedback
+                # loop (last_action -> obs -> next action) matching training.
                 last_action = action.copy()
 
-                targets = action * POLICY_ACTION_SCALE + locomotion_defaults
+                raw_target = action * POLICY_ACTION_SCALE + locomotion_defaults
+                if args.action_smoothing > 0.0:
+                    alpha = float(args.action_smoothing)
+                    smoothed_target[:] = alpha * smoothed_target + (1.0 - alpha) * raw_target
+                    targets = smoothed_target
+                else:
+                    targets = raw_target
             else:
                 # PD stand-still: hold the default pose; legs balance via gain.
                 targets = locomotion_defaults.copy()
@@ -912,16 +1087,44 @@ def main() -> None:
                     print(f"[WARN] gripper.apply_gripper_action failed ({exc}); disabling.")
                     gripper_view = None
 
-            simulation_app.update()
+            # Advance physics DECIMATION times per policy query — matches the
+            # env_cfg's `physics_dt / decimation` contract.  Render once per
+            # outer iter to keep the viewport fluid.
+            for _ in range(DECIMATION):
+                sim.step(render=False)
+            sim.render()
 
-            sleep_time = dt - (time.time() - now)
+            # Per-second diagnostic: pelvis z + horizontal speed estimate.
+            # If z drops fast → falling through floor / friction too low.
+            # If z stays near spawn but horizontal speed << cmd_vx → policy
+            # is producing motion but feet are slipping → friction issue.
+            if int(now - t0) != int(now - t0 - dt):   # every wall second
+                try:
+                    pos_dbg, _ = art.get_world_pose()
+                    lv_dbg = _to_numpy(art.get_linear_velocity())
+                    pz = float(_to_numpy(pos_dbg)[2])
+                    vxy = float(np.hypot(lv_dbg[0], lv_dbg[1]))
+                    print(f"[DBG] t={now - t0:5.1f}s  pelvis_z={pz:+.3f}  "
+                          f"|v_xy|={vxy:+.3f} m/s  cmd_vx={args.cmd_vx:+.2f}")
+                except Exception:
+                    pass
+
+            # Real-time pace.  sim.step() does NOT block on wall clock, so we
+            # cap the outer loop at 1/POLICY_HZ.  --rate lets you slow it down
+            # (rate < 50) but never go faster than POLICY_HZ since that would
+            # drift away from the training contract.
+            target_dt = max(dt, 1.0 / POLICY_HZ)
+            sleep_time = target_dt - (time.time() - now)
             if sleep_time > 0.0:
                 time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         print("[INFO] Stopped.")
     finally:
-        timeline.stop()
+        try:
+            sim.stop()
+        except Exception:
+            pass
         usd_ctx.close_stage()
         simulation_app.close()
 
